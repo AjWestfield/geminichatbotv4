@@ -1,0 +1,134 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+body {
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", sans-serif;
+  font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+}
+
+@layer base {
+  :root {
+    /* Dark Mode Colors - Based on the provided color palette */
+    --background: 0 0% 12%; /* #1E1E1E */
+    --foreground: 0 0% 100%; /* #FFFFFF */
+    --card: 0 0% 10%; /* #1A1A1A */
+    --card-foreground: 0 0% 100%; /* #FFFFFF */
+    --popover: 0 0% 10%; /* #1A1A1A */
+    --popover-foreground: 0 0% 100%; /* #FFFFFF */
+
+    /* Primary Colors - White */
+    --primary: 0 0% 100%; /* #FFFFFF */
+    --primary-foreground: 0 0% 12%; /* #1E1E1E */
+
+    /* Secondary Colors - Dark Gray */
+    --secondary: 0 0% 24%; /* #3C3C3C */
+    --secondary-foreground: 0 0% 100%; /* #FFFFFF */
+
+    /* Accent Colors - Dark Gray */
+    --accent: 0 0% 24%; /* #3C3C3C */
+    --accent-foreground: 0 0% 100%; /* #FFFFFF */
+
+    /* Neutral Colors for Dark Mode */
+    --muted: 0 0% 20%; /* #333333 */
+    --muted-foreground: 0 0% 69%; /* #B0B0B0 */
+
+    /* Surface Colors for Dark Mode */
+    --surface: 0 0% 17%; /* #2B2B2B */
+    --surface-foreground: 0 0% 100%; /* #FFFFFF */
+    --surface-elevated: 0 0% 20%; /* #333333 */
+    --surface-hover: 0 0% 29%; /* #4A4A4A */
+
+    /* Utility Colors for Dark Mode */
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 0 0% 20%; /* #333333 */
+    --input: 0 0% 20%; /* #333333 */
+    --ring: 0 0% 29%; /* #4A4A4A */
+    --radius: 0.5rem;
+
+    /* Sidebar Colors for Dark Mode */
+    --sidebar-background: 0 0% 17%; /* #2B2B2B */
+    --sidebar-foreground: 0 0% 100%; /* #FFFFFF */
+    --sidebar-primary: 0 0% 100%; /* #FFFFFF */
+    --sidebar-primary-foreground: 0 0% 12%; /* #1E1E1E */
+    --sidebar-accent: 0 0% 24%; /* #3C3C3C */
+    --sidebar-accent-foreground: 0 0% 100%; /* #FFFFFF */
+    --sidebar-border: 0 0% 20%; /* #333333 */
+    --sidebar-ring: 0 0% 29%; /* #4A4A4A */
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+
+  /* Smooth transitions for theme switching */
+  * {
+    transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+
+  ::-webkit-scrollbar-track {
+    @apply bg-muted;
+  }
+
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted-foreground/30 rounded-full;
+  }
+
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground/50;
+  }
+
+  /* Focus styles */
+  .focus-ring {
+    @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Glass effect */
+  .glass {
+    backdrop-filter: blur(12px);
+    background: rgba(30, 30, 30, 0.7);
+    border: 1px solid rgba(51, 51, 51, 0.5);
+  }
+}
+
+/* Component-specific styles */
+@layer components {
+  .btn-primary {
+    @apply bg-primary text-primary-foreground hover:bg-primary/90 focus-ring;
+  }
+
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground hover:bg-secondary/80 focus-ring;
+  }
+
+  .btn-accent {
+    @apply bg-accent text-accent-foreground hover:bg-accent/90 focus-ring;
+  }
+
+  .card-elevated {
+    @apply bg-surface-elevated border border-border shadow-soft;
+  }
+
+  .surface-interactive {
+    @apply bg-surface hover:bg-surface-hover transition-colors duration-200;
+  }
+}
