@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square } from "lucide-react"
+import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square, X, FileAudio, Image as ImageIcon } from "lucide-react"
 import { useRef, useCallback, useEffect } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn } from "@/lib/utils"
@@ -80,6 +80,9 @@ interface AIPromptProps {
   isLoading?: boolean
   selectedModel?: string
   onModelChange?: (model: string) => void
+  onFileSelect?: (file: File) => void
+  selectedFile?: { file: File; preview?: string } | null
+  onFileRemove?: () => void
 }
 
 export function AI_Prompt({
@@ -88,15 +91,18 @@ export function AI_Prompt({
   onSubmit,
   onStop,
   isLoading = false,
-  selectedModel = "Gemini 2.5 Flash",
+  selectedModel = "gemini-2.5-flash-preview-05-20",
   onModelChange,
+  onFileSelect,
+  selectedFile,
+  onFileRemove,
 }: AIPromptProps) {
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 80,
     maxHeight: 300,
   })
 
-  const AI_MODELS = ["Gemini 2.5 Pro", "Gemini 2.5 Flash", "Gemini 2.0 Flash"]
+  const AI_MODELS = ["gemini-2.5-pro-preview-05-06", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash-exp"]
 
   const MODEL_ICONS: Record<string, React.ReactNode> = {
     "Claude Opus 4": (
@@ -129,7 +135,7 @@ export function AI_Prompt({
         </svg>
       </>
     ),
-    "Gemini 2.5 Flash": (
+    "gemini-2.5-flash-preview-05-20": (
       <svg height="1em" className="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <title>Gemini</title>
         <defs>
@@ -146,7 +152,7 @@ export function AI_Prompt({
         />
       </svg>
     ),
-    "Gemini 2.5 Pro": (
+    "gemini-2.5-pro-preview-05-06": (
       <svg height="1em" className="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <title>Gemini</title>
         <defs>
@@ -163,7 +169,7 @@ export function AI_Prompt({
         />
       </svg>
     ),
-    "Gemini 2.0 Flash": (
+    "gemini-2.0-flash-exp": (
       <svg height="1em" className="w-4 h-4" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
         <title>Gemini</title>
         <defs>
@@ -201,9 +207,43 @@ export function AI_Prompt({
   return (
     <div className="w-full py-4">
       <div className="bg-[#2B2B2B] rounded-2xl p-1.5 border border-[#4A4A4A] focus-within:ring-2 focus-within:ring-[#4A4A4A] focus-within:ring-offset-2 focus-within:ring-offset-[#1E1E1E] transition-all duration-200">
+        {selectedFile && (
+          <div className="flex items-center gap-2 px-4 py-2 mb-2 bg-[#333333] rounded-lg">
+            <div className="flex items-center gap-2 flex-1">
+              {selectedFile.file.type.startsWith("image/") ? (
+                <>
+                  {selectedFile.preview && (
+                    <img 
+                      src={selectedFile.preview} 
+                      alt="Preview" 
+                      className="w-10 h-10 rounded object-cover"
+                    />
+                  )}
+                  <ImageIcon className="w-4 h-4 text-[#B0B0B0]" />
+                </>
+              ) : (
+                <FileAudio className="w-4 h-4 text-[#B0B0B0]" />
+              )}
+              <span className="text-sm text-[#B0B0B0] truncate">
+                {selectedFile.file.name}
+              </span>
+              <span className="text-xs text-[#808080]">
+                ({(selectedFile.file.size / 1024 / 1024).toFixed(2)} MB)
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={onFileRemove}
+              className="p-1 hover:bg-[#4A4A4A] rounded"
+              aria-label="Remove file"
+            >
+              <X className="w-4 h-4 text-[#B0B0B0]" />
+            </button>
+          </div>
+        )}
         <div className="relative">
           <div className="relative flex flex-col">
-            <div className="overflow-y-auto" style={{ maxHeight: "400px" }}>
+            <div className="overflow-y-auto max-h-[400px]">
               <Textarea
                 id="ai-input-15"
                 value={value}
@@ -280,10 +320,21 @@ export function AI_Prompt({
                       "rounded-lg p-2 cursor-pointer",
                       "hover:bg-[#4A4A4A] focus-visible:ring-1 focus-visible:ring-offset-0 focus-visible:ring-[#4A4A4A]",
                       "text-[#B0B0B0] hover:text-white",
+                      selectedFile && "text-white bg-[#4A4A4A]"
                     )}
                     aria-label="Attach file"
                   >
-                    <input type="file" className="hidden" />
+                    <input 
+                      type="file" 
+                      className="hidden" 
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif,audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/mp4,audio/m4a"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0]
+                        if (file && onFileSelect) {
+                          onFileSelect(file)
+                        }
+                      }}
+                    />
                     <Paperclip className="w-4 h-4 transition-colors" />
                   </label>
                 </div>

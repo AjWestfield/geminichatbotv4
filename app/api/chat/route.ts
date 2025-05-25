@@ -1,105 +1,132 @@
-import { StreamingTextResponse, type Message } from "ai"
+import { GoogleGenerativeAI } from "@google/generative-ai"
 
-// Simple mock responses for different types of queries
-const MOCK_RESPONSES: Record<string, string> = {
-  greeting: "Hello! I'm Claude Sonnet 4, an AI assistant created by Vercel. How can I help you today?",
-  help: "I can help with various tasks like answering questions, providing information, creative writing, or just chatting. What would you like assistance with?",
-  weather:
-    "I don't have access to real-time weather data, but I can discuss weather patterns in general or help you understand meteorological concepts.",
-  time: "I don't have access to the current time, but I can help you with time management concepts or discuss time-related topics.",
-  default:
-    "That's an interesting question. As Claude Sonnet 4, I'm designed to be helpful, harmless, and honest in my responses. Let me think about this...",
-  error:
-    "I apologize, but I'm currently operating in offline mode due to connection issues. I'll do my best to assist you with limited capabilities.",
-}
-
-// Function to generate a response based on the user's message
-function generateResponse(message: string): string {
-  const lowerMessage = message.toLowerCase()
-
-  if (lowerMessage.includes("hello") || lowerMessage.includes("hi") || lowerMessage.includes("hey")) {
-    return MOCK_RESPONSES.greeting
-  }
-
-  if (lowerMessage.includes("help") || lowerMessage.includes("assist")) {
-    return MOCK_RESPONSES.help
-  }
-
-  if (lowerMessage.includes("weather")) {
-    return MOCK_RESPONSES.weather
-  }
-
-  if (lowerMessage.includes("time")) {
-    return MOCK_RESPONSES.time
-  }
-
-  if (lowerMessage.includes("claude")) {
-    return "Yes, I'm Claude Sonnet 4, a large language model created by Anthropic. I'm designed to be helpful, harmless, and honest. How can I assist you today?"
-  }
-
-  if (lowerMessage.includes("anthropic")) {
-    return "Anthropic is the AI company that created me. They focus on building AI systems that are safe, beneficial, and aligned with human values."
-  }
-
-  // Add more patterns as needed
-
-  return MOCK_RESPONSES.default
-}
-
-// Create a readable stream from a string
-function createStream(text: string) {
-  const encoder = new TextEncoder()
-  const stream = new ReadableStream({
-    async start(controller) {
-      // Add a small delay to simulate thinking
-      await new Promise((resolve) => setTimeout(resolve, 800))
-
-      // Send the text in chunks to simulate streaming
-      const chunks = text.split(" ")
-      for (const chunk of chunks) {
-        controller.enqueue(encoder.encode(chunk + " "))
-        // Small delay between words for a more natural effect
-        await new Promise((resolve) => setTimeout(resolve, 40))
-      }
-      controller.close()
-    },
-  })
-
-  return stream
-}
+// Initialize Gemini AI
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
 
 export async function POST(req: Request) {
-  console.log("Chat API route called")
-
   try {
     // Parse request
-    const body = await req.json()
-    const messages = body.messages as Message[]
+    const { messages, model = "gemini-2.5-flash-preview-05-20", fileUri, fileMimeType } = await req.json()
 
     if (!messages || !Array.isArray(messages)) {
-      console.error("Invalid messages format")
       return new Response("Invalid messages format", { status: 400 })
     }
 
-    console.log(`Received ${messages.length} messages`)
+    // Get the generative model
+    const generativeModel = genAI.getGenerativeModel({ model })
 
     // Get the last user message
-    const lastUserMessage = messages.filter((m) => m.role === "user").pop()
-
-    if (!lastUserMessage) {
-      const responseText = MOCK_RESPONSES.greeting
-      return new StreamingTextResponse(createStream(responseText))
+    const lastMessage = messages[messages.length - 1]
+    if (!lastMessage || lastMessage.role !== "user") {
+      return new Response("No user message found", { status: 400 })
     }
 
-    // Generate a response based on the user's message
-    const responseText = generateResponse(lastUserMessage.content)
+    // Convert messages to Gemini format, excluding system messages and initial assistant greeting
+    const history = messages
+      .filter((m) => m.role !== "system" && m.id !== "welcome-message")
+      .slice(0, -1) // Exclude the last message which we'll send separately
+      .map((m) => ({
+        role: m.role === "user" ? "user" : "model",
+        parts: [{ text: m.content }],
+      }))
+    
+    // Ensure history starts with user message or is empty
+    if (history.length > 0 && history[0].role !== "user") {
+      history.shift() // Remove first message if it's not from user
+    }
 
-    // Return a streaming response
-    return new StreamingTextResponse(createStream(responseText))
+    // Start chat session with history
+    const chat = generativeModel.startChat({
+      history,
+      generationConfig: {
+        temperature: 0.7,
+        topK: 1,
+        topP: 1,
+        maxOutputTokens: 2048,
+      },
+    })
+
+    // Prepare content parts for multimodal input
+    const contentParts = []
+    
+    // Add file if provided
+    if (fileUri && fileMimeType) {
+      contentParts.push({
+        fileData: {
+          mimeType: fileMimeType,
+          fileUri: fileUri
+        }
+      })
+    }
+    
+    // Add text message
+    contentParts.push({ text: lastMessage.content })
+    
+    // Send message and get streaming response
+    const result = await chat.sendMessageStream(contentParts)
+
+    // Create a TransformStream to convert the response
+    const encoder = new TextEncoder()
+    const stream = new ReadableStream({
+      async start(controller) {
+        try {
+          for await (const chunk of result.stream) {
+            const text = chunk.text()
+            // Format as data stream for AI SDK v4
+            // Escape the text properly for JSON
+            const escapedText = text
+              .replace(/\\/g, '\\\\')
+              .replace(/"/g, '\\"')
+              .replace(/\n/g, '\\n')
+              .replace(/\r/g, '\\r')
+              .replace(/\t/g, '\\t')
+            
+            const formatted = `0:"${escapedText}"\n`
+            controller.enqueue(encoder.encode(formatted))
+          }
+          // Send the done signal
+          controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`))
+        } catch (error) {
+          console.error("Streaming error:", error)
+          // Send error signal
+          const errorMessage = error instanceof Error ? error.message : "Unknown error"
+          const escapedError = errorMessage
+            .replace(/\\/g, '\\\\')
+            .replace(/"/g, '\\"')
+            .replace(/\n/g, '\\n')
+          controller.enqueue(encoder.encode(`3:{"error":"${escapedError}"}\n`))
+        } finally {
+          controller.close()
+        }
+      },
+    })
+
+    // Return SSE response
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+      },
+    })
   } catch (error) {
-    console.error("Server Error:", error)
-
-    // Even if there's an error, return a valid streaming response
-    return new StreamingTextResponse(createStream(MOCK_RESPONSES.error))
+    console.error("Chat API Error:", error)
+    
+    // Return error in data stream format
+    const errorMessage = error instanceof Error ? error.message : "Unknown error"
+    const escapedError = errorMessage
+      .replace(/\\/g, '\\\\')
+      .replace(/"/g, '\\"')
+      .replace(/\n/g, '\\n')
+    return new Response(
+      `3:{"error":"${escapedError}"}\n`,
+      { 
+        status: 200, // Keep 200 for data stream compatibility
+        headers: { 
+          'Content-Type': 'text/event-stream',
+          'Cache-Control': 'no-cache',
+        }
+      }
+    )
   }
 }
