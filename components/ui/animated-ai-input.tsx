@@ -2,10 +2,10 @@
 
 import type React from "react"
 
-import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square, X, FileAudio, Image as ImageIcon } from "lucide-react"
+import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square, X, FileAudio, Image as ImageIcon, Video } from "lucide-react"
 import { useRef, useCallback, useEffect } from "react"
 import { Textarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
+import { cn, formatFileSize, formatDuration, formatVideoDuration } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AnimatePresence, motion } from "framer-motion"
@@ -81,7 +81,17 @@ interface AIPromptProps {
   selectedModel?: string
   onModelChange?: (model: string) => void
   onFileSelect?: (file: File) => void
-  selectedFile?: { file: File; preview?: string } | null
+  selectedFile?: { 
+    file: File
+    preview?: string
+    transcription?: {
+      text: string
+      language?: string
+      duration?: number
+    }
+    videoThumbnail?: string // Add this
+    videoDuration?: number // Add this
+  } | null
   onFileRemove?: () => void
 }
 
@@ -208,37 +218,80 @@ export function AI_Prompt({
     <div className="w-full py-4">
       <div className="bg-[#2B2B2B] rounded-2xl p-1.5 border border-[#4A4A4A] focus-within:ring-2 focus-within:ring-[#4A4A4A] focus-within:ring-offset-2 focus-within:ring-offset-[#1E1E1E] transition-all duration-200">
         {selectedFile && (
-          <div className="flex items-center gap-2 px-4 py-2 mb-2 bg-[#333333] rounded-lg">
-            <div className="flex items-center gap-2 flex-1">
-              {selectedFile.file.type.startsWith("image/") ? (
-                <>
-                  {selectedFile.preview && (
-                    <img 
-                      src={selectedFile.preview} 
-                      alt="Preview" 
-                      className="w-10 h-10 rounded object-cover"
-                    />
-                  )}
-                  <ImageIcon className="w-4 h-4 text-[#B0B0B0]" />
-                </>
-              ) : (
-                <FileAudio className="w-4 h-4 text-[#B0B0B0]" />
-              )}
-              <span className="text-sm text-[#B0B0B0] truncate">
-                {selectedFile.file.name}
-              </span>
-              <span className="text-xs text-[#808080]">
-                ({(selectedFile.file.size / 1024 / 1024).toFixed(2)} MB)
-              </span>
+          <div className="mx-4 mt-2 mb-2 bg-[#333333] rounded-lg max-w-[350px]">
+            <div className="flex items-center gap-2 p-2">
+              <div className="flex items-center gap-2 flex-1 min-w-0">
+                {selectedFile.file.type.startsWith("image/") ? (
+                  <>
+                    {selectedFile.preview && (
+                      <img 
+                        src={selectedFile.preview} 
+                        alt="Preview" 
+                        className="w-10 h-10 rounded object-cover flex-shrink-0"
+                      />
+                    )}
+                    <ImageIcon className="w-4 h-4 text-[#B0B0B0] flex-shrink-0" />
+                  </>
+                ) : selectedFile.file.type.startsWith("video/") ? (
+                  <>
+                    {selectedFile.videoThumbnail ? (
+                      <div className="relative w-10 h-10 rounded overflow-hidden flex-shrink-0">
+                        <img 
+                          src={selectedFile.videoThumbnail} 
+                          alt="Video thumbnail" 
+                          className="w-full h-full object-cover"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                          <Video className="w-5 h-5 text-white" />
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                        <Video className="w-5 h-5 text-[#B0B0B0]" />
+                      </div>
+                    )}
+                  </>
+                ) : (
+                  <div className="w-10 h-10 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                    <FileAudio className="w-5 h-5 text-[#B0B0B0]" />
+                  </div>
+                )}
+                <div className="flex-1 min-w-0 overflow-hidden">
+                  <p className="text-sm text-[#B0B0B0] truncate" title={selectedFile.file.name}>
+                    {selectedFile.file.name}
+                  </p>
+                  <p className="text-xs text-[#808080]">
+                    {formatFileSize(selectedFile.file.size)}
+                    {selectedFile.file.type.startsWith("audio/") && selectedFile.preview && " • Ready to play"}
+                    {selectedFile.file.type.startsWith("video/") && selectedFile.videoDuration && 
+                      ` • ${formatVideoDuration(selectedFile.videoDuration)}`}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={onFileRemove}
+                className="p-1 hover:bg-[#4A4A4A] rounded flex-shrink-0"
+                aria-label="Remove file"
+              >
+                <X className="w-4 h-4 text-[#B0B0B0]" />
+              </button>
             </div>
-            <button
-              type="button"
-              onClick={onFileRemove}
-              className="p-1 hover:bg-[#4A4A4A] rounded"
-              aria-label="Remove file"
-            >
-              <X className="w-4 h-4 text-[#B0B0B0]" />
-            </button>
+            {/* Show transcription preview for audio and video files */}
+            {(selectedFile.file.type.startsWith("audio/") || selectedFile.file.type.startsWith("video/")) && 
+             selectedFile.transcription && (
+              <div className="px-2 pb-2">
+                <div className="p-2 bg-black/20 rounded">
+                  <p className="text-xs text-gray-400 mb-1">
+                    Transcription {selectedFile.transcription.language ? `(${selectedFile.transcription.language})` : ''}
+                    {selectedFile.transcription.duration ? ` • ${formatDuration(selectedFile.transcription.duration)}` : ''}
+                  </p>
+                  <p className="text-xs text-gray-300 italic line-clamp-2">
+                    "{selectedFile.transcription.text}"
+                  </p>
+                </div>
+              </div>
+            )}
           </div>
         )}
         <div className="relative">
@@ -327,7 +380,7 @@ export function AI_Prompt({
                     <input 
                       type="file" 
                       className="hidden" 
-                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif,audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/mp4,audio/m4a"
+                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif,audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/mp4,audio/m4a,video/mp4,video/mpeg,video/mov,video/avi,video/webm,video/quicktime"
                       onChange={(e) => {
                         const file = e.target.files?.[0]
                         if (file && onFileSelect) {

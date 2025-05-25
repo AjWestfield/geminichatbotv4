@@ -7,6 +7,9 @@ import ChatMessage from "./chat-message"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
 import { useState, useCallback, useRef, useEffect } from "react"
 import AgentTaskView from "./agent-task-view"
+import { UploadProgress } from "./upload-progress"
+import { AnimatePresence } from "framer-motion"
+import { generateVideoThumbnail, getVideoDuration } from "@/lib/video-utils"
 
 interface FileUpload {
   file: File
@@ -16,6 +19,14 @@ interface FileUpload {
     mimeType: string
     name: string
   }
+  transcription?: {
+    text: string
+    language?: string
+    duration?: number
+    segments?: any[] // For detailed timing info
+  }
+  videoThumbnail?: string // Add this for video thumbnail
+  videoDuration?: number // Add this for video duration
 }
 
 export default function ChatInterface() {
@@ -23,6 +34,8 @@ export default function ChatInterface() {
   const [showAgentTasks, setShowAgentTasks] = useState(false)
   const [selectedFile, setSelectedFile] = useState<FileUpload | null>(null)
   const [isUploading, setIsUploading] = useState(false)
+  const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'>('idle')
   
   // Store object URLs for cleanup
   const objectURLsRef = useRef<Set<string>>(new Set())
@@ -32,6 +45,14 @@ export default function ChatInterface() {
     name: string
     contentType: string
     url?: string
+    transcription?: {
+      text: string
+      language?: string
+      duration?: number
+      segments?: any[]
+    }
+    videoThumbnail?: string // Add this
+    videoDuration?: number // Add this
   }[]>>({})
   
   // Track pending attachment for the next message
@@ -39,6 +60,14 @@ export default function ChatInterface() {
     name: string
     contentType: string
     url?: string
+    transcription?: {
+      text: string
+      language?: string
+      duration?: number
+      segments?: any[]
+    }
+    videoThumbnail?: string // Add this
+    videoDuration?: number // Add this
   } | null>(null)
 
   const { messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, error, stop, append } = useChat({
@@ -47,6 +76,7 @@ export default function ChatInterface() {
       model: selectedModel,
       fileUri: selectedFile?.geminiFile?.uri,
       fileMimeType: selectedFile?.geminiFile?.mimeType,
+      transcription: selectedFile?.transcription, // Include transcription data
     },
     initialMessages: [
       {
@@ -84,22 +114,58 @@ export default function ChatInterface() {
   // Cleanup object URLs on unmount
   useEffect(() => {
     return () => {
-      for (const url of objectURLsRef.current) {
-        URL.revokeObjectURL(url)
-      }
+      // Delay cleanup to ensure URLs are still valid when needed
+      setTimeout(() => {
+        for (const url of objectURLsRef.current) {
+          URL.revokeObjectURL(url)
+        }
+      }, 5000) // 5 second delay
     }
   }, [])
 
   const handleFileSelect = useCallback(async (file: File) => {
     setIsUploading(true)
+    setUploadProgress(0)
+    setUploadStatus('uploading')
     
     try {
-      // Create preview for images
+      // Create preview for images, audio, and video files
       let preview: string | undefined
+      let videoThumbnail: string | undefined
+      let videoDuration: number | undefined
+      
       if (file.type.startsWith("image/")) {
         preview = URL.createObjectURL(file)
         objectURLsRef.current.add(preview)
+      } else if (file.type.startsWith("audio/")) {
+        preview = URL.createObjectURL(file)
+        objectURLsRef.current.add(preview)
+      } else if (file.type.startsWith("video/")) {
+        // For video files, create object URL and generate thumbnail
+        preview = URL.createObjectURL(file)
+        objectURLsRef.current.add(preview)
+        
+        try {
+          // Generate thumbnail at 2 seconds (or 0 if video is shorter)
+          videoThumbnail = await generateVideoThumbnail(file, 2.0)
+          videoDuration = await getVideoDuration(file)
+          console.log('Video thumbnail generated, duration:', videoDuration)
+        } catch (thumbError) {
+          console.error('Failed to generate video thumbnail:', thumbError)
+          // Continue without thumbnail
+        }
       }
+      
+      // Simulate upload progress
+      const progressInterval = setInterval(() => {
+        setUploadProgress(prev => {
+          if (prev >= 90) {
+            clearInterval(progressInterval)
+            return 90
+          }
+          return prev + 10
+        })
+      }, 200)
       
       // Upload to Gemini
       const formData = new FormData()
@@ -110,28 +176,102 @@ export default function ChatInterface() {
         body: formData,
       })
       
+      clearInterval(progressInterval)
+      setUploadProgress(100)
+      
       if (!response.ok) {
         throw new Error("Failed to upload file")
       }
       
       const data = await response.json()
       
+      // Transcribe audio and video files with Whisper
+      let transcription: FileUpload['transcription'] = undefined
+      if (file.type.startsWith("audio/") || file.type.startsWith("video/")) {
+        try {
+          setUploadStatus('transcribing')
+          setUploadProgress(0)
+          
+          // Simulate transcription progress
+          const transcribeProgressInterval = setInterval(() => {
+            setUploadProgress(prev => {
+              if (prev >= 80) {
+                clearInterval(transcribeProgressInterval)
+                return 80
+              }
+              return prev + 20
+            })
+          }, 300)
+          
+          const transcribeFormData = new FormData()
+          transcribeFormData.append("file", file)
+          
+          const transcribeResponse = await fetch("/api/transcribe", {
+            method: "POST",
+            body: transcribeFormData,
+          })
+          
+          clearInterval(transcribeProgressInterval)
+          setUploadProgress(100)
+          
+          if (transcribeResponse.ok) {
+            const transcribeData = await transcribeResponse.json()
+            transcription = {
+              text: transcribeData.transcription.text,
+              language: transcribeData.transcription.language,
+              duration: transcribeData.transcription.duration || videoDuration,
+              segments: transcribeData.transcription.segments,
+            }
+            console.log('Transcription successful:', transcription)
+          } else {
+            const errorData = await transcribeResponse.json()
+            console.error('Transcription failed:', errorData)
+            // Show user-friendly error but continue
+            if (errorData.details?.includes("25MB")) {
+              console.warn('File too large for transcription')
+              // You might want to show a toast notification here
+            }
+          }
+        } catch (transcribeError) {
+          console.error("Transcription error:", transcribeError)
+          // Continue without transcription
+        }
+      }
+      
       setSelectedFile({
         file,
         preview,
         geminiFile: data.file,
+        transcription,
+        videoThumbnail,
+        videoDuration,
       })
+      
+      setUploadStatus('complete')
+      // Hide success message after 2 seconds
+      setTimeout(() => {
+        setUploadStatus('idle')
+        setUploadProgress(0)
+      }, 2000)
+      
     } catch (error) {
       console.error("File upload error:", error)
-      alert("Failed to upload file. Please try again.")
+      setUploadStatus('error')
+      setTimeout(() => {
+        setUploadStatus('idle')
+        setUploadProgress(0)
+      }, 3000)
     } finally {
       setIsUploading(false)
     }
   }, [])
   
   const handleFileRemove = useCallback(() => {
+    // Don't revoke the URL immediately as it might still be needed
     setSelectedFile(null)
     pendingAttachmentRef.current = null
+    setUploadStatus('idle')
+    setUploadProgress(0)
   }, [])
   
   const handleSubmit = useCallback(() => {
@@ -146,7 +286,10 @@ export default function ChatInterface() {
         pendingAttachmentRef.current = {
           name: selectedFile.file.name,
           contentType: selectedFile.file.type,
-          url: selectedFile.preview || ''
+          url: selectedFile.preview || '',
+          transcription: selectedFile.transcription,
+          videoThumbnail: selectedFile.videoThumbnail, // Add this
+          videoDuration: selectedFile.videoDuration, // Add this
         }
         console.log('Pending attachment set:', pendingAttachmentRef.current)
       }
@@ -210,19 +353,29 @@ export default function ChatInterface() {
         </div>
       </ScrollArea>
 
-      <div className="p-4 border-t border-[#333333]">
-        <AI_Prompt
-          value={input}
-          onChange={(value) => handleInputChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
-          onSubmit={handleSubmit}
-          onStop={stop}
-          isLoading={isLoading}
-          selectedModel={selectedModel}
-          onModelChange={setSelectedModel}
-          onFileSelect={handleFileSelect}
-          selectedFile={selectedFile}
-          onFileRemove={handleFileRemove}
-        />
+      <div className="border-t border-[#333333]">
+        <AnimatePresence>
+          <UploadProgress 
+            progress={uploadProgress} 
+            status={uploadStatus} 
+            fileName={selectedFile?.file.name}
+            fileSize={selectedFile?.file.size}
+          />
+        </AnimatePresence>
+        <div className="p-4">
+          <AI_Prompt
+            value={input}
+            onChange={(value) => handleInputChange({ target: { value } } as React.ChangeEvent<HTMLInputElement>)}
+            onSubmit={handleSubmit}
+            onStop={stop}
+            isLoading={isLoading}
+            selectedModel={selectedModel}
+            onModelChange={setSelectedModel}
+            onFileSelect={handleFileSelect}
+            selectedFile={selectedFile}
+            onFileRemove={handleFileRemove}
+          />
+        </div>
       </div>
 
       {showAgentTasks && (

@@ -1,10 +1,20 @@
-import { cn } from "@/lib/utils"
-import { FileAudio, Image as ImageIcon } from "lucide-react"
+import { cn, formatDuration, getFileExtension, formatVideoDuration } from "@/lib/utils"
+import { FileAudio, Image as ImageIcon, Video } from "lucide-react"
+import { useState } from "react"
+import { FilePreviewModal } from "./file-preview-modal"
 
 interface MessageAttachment {
   name: string
   contentType: string
   url?: string
+  transcription?: {
+    text: string
+    language?: string
+    duration?: number
+    segments?: any[]
+  }
+  videoThumbnail?: string
+  videoDuration?: number
 }
 
 interface ChatMessageProps {
@@ -20,57 +30,110 @@ interface ChatMessageProps {
 export default function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
   const attachments = message.experimental_attachments
+  const [selectedFile, setSelectedFile] = useState<MessageAttachment | null>(null)
 
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-      <div
-        className={cn(
-          "max-w-[85%] rounded-xl px-4 py-3",
-          isUser ? "bg-[#3C3C3C] text-white" : "bg-[#2B2B2B] text-white",
-        )}
-      >
-        {attachments && attachments.length > 0 && (
-          <div className="mb-2 space-y-2">
-            {attachments.map((attachment) => {
-              const fileType = attachment.contentType || ''
-              const key = `${message.id}-${attachment.name}`
-              
-              return (
-                <div key={key} className="flex items-center gap-2 p-2 bg-black/20 rounded-lg">
-                  {fileType.startsWith("image/") ? (
-                    <>
-                      {attachment.url && attachment.url !== '' ? (
-                        <img 
-                          src={attachment.url} 
-                          alt={attachment.name}
-                          className="w-16 h-16 rounded object-cover"
-                          onError={(e) => {
-                            console.error('Image failed to load:', attachment.url);
-                            (e.target as HTMLImageElement).style.display = 'none';
-                          }}
-                        />
-                      ) : (
-                        <div className="w-16 h-16 rounded bg-black/30 flex items-center justify-center">
-                          <ImageIcon className="w-8 h-8 text-gray-400" />
-                        </div>
-                      )}
-                    </>
-                  ) : fileType.startsWith("audio/") ? (
-                    <div className="w-16 h-16 rounded bg-black/30 flex items-center justify-center">
-                      <FileAudio className="w-8 h-8 text-gray-400" />
+    <>
+      <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
+        <div
+          className={cn(
+            "max-w-[85%] rounded-xl px-4 py-3",
+            isUser ? "bg-[#3C3C3C] text-white" : "bg-[#2B2B2B] text-white",
+            "sm:max-w-[80%] md:max-w-[85%]"
+          )}
+        >
+          {attachments && attachments.length > 0 && (
+            <div className="mb-2 flex flex-wrap gap-2">
+              {attachments.map((attachment) => {
+                const fileType = attachment.contentType || ''
+                const key = `${message.id}-${attachment.name}`
+                const fileExtension = getFileExtension(attachment.name)
+                
+                return (
+                  <div 
+                    key={key}
+                    className="file-attachment cursor-pointer hover:bg-black/40 transition-colors"
+                    onClick={() => setSelectedFile(attachment)}
+                    title={`${attachment.name}\nClick to preview`}
+                  >
+                    {fileType.startsWith("image/") ? (
+                      <>
+                        {attachment.url && attachment.url !== '' ? (
+                          <img 
+                            src={attachment.url} 
+                            alt={attachment.name}
+                            className="w-10 h-10 rounded object-cover flex-shrink-0"
+                            onError={(e) => {
+                              console.error('Image failed to load:', attachment.url);
+                              (e.target as HTMLImageElement).style.display = 'none';
+                            }}
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                            <ImageIcon className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
+                      </>
+                    ) : fileType.startsWith("video/") ? (
+                      <>
+                        {attachment.videoThumbnail ? (
+                          <div className="relative w-10 h-10 rounded overflow-hidden flex-shrink-0">
+                            <img 
+                              src={attachment.videoThumbnail} 
+                              alt={`${attachment.name} thumbnail`}
+                              className="w-full h-full object-cover"
+                            />
+                            <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                              <Video className="w-4 h-4 text-white drop-shadow-md" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="w-10 h-10 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                            <Video className="w-5 h-5 text-gray-400" />
+                          </div>
+                        )}
+                      </>
+                    ) : fileType.startsWith("audio/") ? (
+                      <div className="w-10 h-10 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                        <FileAudio className="w-5 h-5 text-gray-400" />
+                      </div>
+                    ) : null}
+                    <div className="flex-1 min-w-0 overflow-hidden">
+                      <p className="text-xs font-medium truncate-filename">
+                        {attachment.name}
+                      </p>
+                      <div className="flex items-center gap-1 text-xs text-gray-400">
+                        <span className="uppercase">{fileExtension}</span>
+                        {attachment.videoDuration && (
+                          <>
+                            <span>•</span>
+                            <span>{formatVideoDuration(attachment.videoDuration)}</span>
+                          </>
+                        )}
+                        {!attachment.videoDuration && attachment.transcription?.duration && (
+                          <>
+                            <span>•</span>
+                            <span>{formatDuration(attachment.transcription.duration)}</span>
+                          </>
+                        )}
+                      </div>
                     </div>
-                  ) : null}
-                  <div className="flex-1 min-w-0">
-                    <p className="text-xs font-medium truncate">{attachment.name}</p>
-                    <p className="text-xs text-gray-400">{fileType}</p>
                   </div>
-                </div>
-              )
-            })}
-          </div>
-        )}
+                )
+              })}
+            </div>
+          )}
         <p className="text-sm whitespace-pre-wrap">{message.content}</p>
       </div>
     </div>
+    
+    {selectedFile && (
+      <FilePreviewModal
+        isOpen={!!selectedFile}
+        onClose={() => setSelectedFile(null)}
+        file={selectedFile}
+      />
+    )}
+  </>
   )
 }

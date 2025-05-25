@@ -11,6 +11,25 @@ body {
   .text-balance {
     text-wrap: balance;
   }
+  
+  /* Enhanced text truncation utilities */
+  .truncate-filename {
+    @apply truncate;
+    max-width: 200px;
+  }
+  
+  @media (max-width: 640px) {
+    .truncate-filename {
+      max-width: 150px;
+    }
+  }
+  
+  .truncate-multiline {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
 }
 
 @layer base {
@@ -96,10 +115,61 @@ body {
   ::-webkit-scrollbar-thumb:hover {
     @apply bg-muted-foreground/50;
   }
+  
+  /* Custom audio player styles */
+  audio {
+    width: 100%;
+    height: 48px;
+    outline: none;
+  }
+  
+  audio::-webkit-media-controls-panel {
+    background-color: #1a1a1a;
+    border-radius: 8px;
+  }
+  
+  audio::-webkit-media-controls-current-time-display,
+  audio::-webkit-media-controls-time-remaining-display {
+    color: #b0b0b0;
+  }
+  
+  audio::-webkit-media-controls-play-button,
+  audio::-webkit-media-controls-mute-button {
+    filter: invert(1);
+  }
+  
+  audio::-webkit-media-controls-timeline {
+    filter: invert(0.8);
+  }
+  
+  audio::-webkit-media-controls-volume-slider {
+    filter: invert(0.8);
+  }
 
   /* Focus styles */
   .focus-ring {
     @apply focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background;
+  }
+
+  /* Glass effect */
+  .glass {
+    backdrop-filter: blur(12px);
+    background: rgba(30, 30, 30, 0.7);
+    border: 1px solid rgba(51, 51, 51, 0.5);
+  }
+  
+  /* Upload progress animations */
+  @keyframes pulse-glow {
+    0%, 100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.5;
+    }
+  }
+  
+  .pulse-glow {
+    animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   }
 
   /* Glass effect */
@@ -130,5 +200,16 @@ body {
 
   .surface-interactive {
     @apply bg-surface hover:bg-surface-hover transition-colors duration-200;
+  }
+  
+  /* File attachment styles */
+  .file-attachment {
+    @apply inline-flex items-center gap-2 p-2 bg-black/20 rounded-lg cursor-pointer hover:bg-black/30 transition-colors;
+    max-width: min(280px, 100%);
+  }
+  
+  .file-attachment-compact {
+    @apply inline-flex items-center gap-1.5 px-2 py-1 bg-black/20 rounded-md cursor-pointer hover:bg-black/30 transition-colors text-xs;
+    max-width: min(200px, 100%);
   }
 }

@@ -22,22 +22,35 @@ export async function POST(req: NextRequest) {
 
     // Validate file type
     const supportedTypes = [
+      // Images
       "image/jpeg",
       "image/png",
       "image/webp",
       "image/heic",
       "image/heif",
+      // Audio
       "audio/mpeg",
       "audio/mp3",
       "audio/wav",
       "audio/webm",
       "audio/mp4",
-      "audio/m4a"
+      "audio/m4a",
+      // Video
+      "video/mp4",
+      "video/mpeg",
+      "video/mov",
+      "video/avi",
+      "video/x-flv",
+      "video/mpg",
+      "video/webm",
+      "video/wmv",
+      "video/3gpp",
+      "video/quicktime"
     ]
 
     if (!supportedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "Unsupported file type. Please upload an image (JPEG, PNG, WebP) or audio file (MP3, WAV, etc.)" },
+        { error: "Unsupported file type. Please upload an image (JPEG, PNG, WebP), audio file (MP3, WAV, etc.), or video file (MP4, MOV, etc.)" },
         { status: 400 }
       )
     }
@@ -67,14 +80,19 @@ export async function POST(req: NextRequest) {
       // Wait for file to be processed
       let fileInfo = await fileManager.getFile(uploadResponse.file.name)
       
+      console.log(`File upload - Initial state: ${fileInfo.state}, Type: ${file.type}, Size: ${file.size} bytes`)
+      
       while (fileInfo.state === "PROCESSING") {
         await new Promise(resolve => setTimeout(resolve, 1000))
         fileInfo = await fileManager.getFile(uploadResponse.file.name)
       }
 
       if (fileInfo.state === "FAILED") {
+        console.error(`File processing failed for ${file.name}`)
         throw new Error("File processing failed")
       }
+
+      console.log(`File upload successful - URI: ${fileInfo.uri}, State: ${fileInfo.state}`)
 
       // Return file info
       return NextResponse.json({
