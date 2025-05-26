@@ -121,7 +121,7 @@ export function AppSidebar() {
                       <motion.li variants={variants} className="flex w-fit items-center gap-2">
                         {!isCollapsed && (
                           <>
-                            <p className="text-sm font-medium">AI Assistant</p>
+                            <p className="text-sm font-medium">Gemini AI</p>
                             <ChevronsUpDown className="h-4 w-4 text-muted-foreground/50" />
                           </>
                         )}
