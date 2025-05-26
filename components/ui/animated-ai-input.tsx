@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square, X, FileAudio, Image as ImageIcon, Video } from "lucide-react"
+import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square, X, FileAudio, Image as ImageIcon, Video, Sparkles } from "lucide-react"
 import { useRef, useCallback, useEffect } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn, formatFileSize, formatDuration, formatVideoDuration } from "@/lib/utils"
@@ -75,7 +75,7 @@ const OPENAI_ICON = (
 interface AIPromptProps {
   value: string
   onChange: (value: string) => void
-  onSubmit: () => void
+  onSubmit: (e?: React.FormEvent) => void
   onStop?: () => void
   isLoading?: boolean
   selectedModel?: string
@@ -93,6 +93,7 @@ interface AIPromptProps {
     videoDuration?: number // Add this
   } | null
   onFileRemove?: () => void
+  onGenerateImage?: () => void // Add this for quick image generation
 }
 
 export function AI_Prompt({
@@ -208,7 +209,10 @@ export function AI_Prompt({
     }
   }
 
-  const handleSubmit = () => {
+  const handleSubmit = (e?: React.FormEvent) => {
+    if (e) {
+      e.preventDefault()
+    }
     if (!value.trim() || isLoading) return
     onSubmit()
     adjustHeight(true)

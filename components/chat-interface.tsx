@@ -10,6 +10,17 @@ import AgentTaskView from "./agent-task-view"
 import { UploadProgress } from "./upload-progress"
 import { AnimatePresence } from "framer-motion"
 import { generateVideoThumbnail, getVideoDuration } from "@/lib/video-utils"
+import { 
+  GeneratedImage, 
+  generateImageId, 
+  isImageGenerationRequest, 
+  extractImagePrompt,
+  loadGeneratedImages,
+  saveGeneratedImages 
+} from "@/lib/image-utils"
+import { ImageGenerationSettings } from "./image-generation-settings"
+import { Button } from "@/components/ui/button"
+import { Settings } from "lucide-react"
 
 interface FileUpload {
   file: File
@@ -29,16 +40,38 @@ interface FileUpload {
   videoDuration?: number // Add this for video duration
 }
 
-export default function ChatInterface() {
+interface ChatInterfaceProps {
+  onGeneratedImagesChange?: (images: GeneratedImage[]) => void
+  onImageGenerationStart?: () => void
+}
+
+export default function ChatInterface({ onGeneratedImagesChange, onImageGenerationStart }: ChatInterfaceProps) {
   const [selectedModel, setSelectedModel] = useState("gemini-2.5-flash-preview-05-20")
   const [showAgentTasks, setShowAgentTasks] = useState(false)
   const [selectedFile, setSelectedFile] = useState<FileUpload | null>(null)
   const [isUploading, setIsUploading] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'>('idle')
+  const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  
+  // Image generation settings
+  const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>('standard')
+  const [imageStyle, setImageStyle] = useState<'vivid' | 'natural'>('vivid')
+  const [imageSize, setImageSize] = useState<'1024x1024' | '1792x1024' | '1024x1792'>('1024x1024')
+  const [showImageSettings, setShowImageSettings] = useState(false)
   
   // Store object URLs for cleanup
   const objectURLsRef = useRef<Set<string>>(new Set())
+  
+  // Load generated images on mount
+  useEffect(() => {
+    const savedImages = loadGeneratedImages()
+    if (savedImages.length > 0) {
+      setGeneratedImages(savedImages)
+      onGeneratedImagesChange?.(savedImages)
+    }
+  }, [])
 
   // Store file attachments for each message
   const [messageAttachments, setMessageAttachments] = useState<Record<string, {
@@ -123,6 +156,17 @@ export default function ChatInterface() {
     }
   }, [])
 
+  // Clear local messages when real messages change (to prevent duplicates)
+  // But preserve image generation success messages
+  useEffect(() => {
+    if (messages.length > 1) { // Keep initial welcome message check
+      setLocalMessages(prev => prev.filter(msg => 
+        msg.id.startsWith('img-success-') || 
+        msg.id.startsWith('img-error-')
+      ))
+    }
+  }, [messages.length])
+  
   const handleFileSelect = useCallback(async (file: File) => {
     setIsUploading(true)
     setUploadProgress(0)
@@ -274,38 +318,207 @@ export default function ChatInterface() {
     setUploadProgress(0)
   }, [])
   
-  const handleSubmit = useCallback(() => {
-    if (input.trim() || selectedFile) {
-      // For demo purposes, show the agent task view when submitting a message
-      if (input.toLowerCase().includes("agent") || input.toLowerCase().includes("task")) {
-        setShowAgentTasks(true)
-      }
-      
-      // Store the attachment info before submission
-      if (selectedFile) {
-        pendingAttachmentRef.current = {
-          name: selectedFile.file.name,
-          contentType: selectedFile.file.type,
-          url: selectedFile.preview || '',
-          transcription: selectedFile.transcription,
-          videoThumbnail: selectedFile.videoThumbnail, // Add this
-          videoDuration: selectedFile.videoDuration, // Add this
-        }
-        console.log('Pending attachment set:', pendingAttachmentRef.current)
-      }
-      
-      originalHandleSubmit()
-      
-      // Clear file after submission
-      setSelectedFile(null)
+  // Local messages for image generation feedback
+  const [localMessages, setLocalMessages] = useState<Array<{id: string, role: string, content: string}>>([])
+  
+  const handleImageGeneration = useCallback(async (originalPrompt: string) => {
+    setIsGeneratingImage(true)
+    
+    // Add user's message to local messages immediately
+    const userMessage = {
+      id: `img-user-${Date.now()}`,
+      role: "user",
+      content: originalPrompt,
     }
-  }, [input, selectedFile, originalHandleSubmit])
+    setLocalMessages(prev => [...prev, userMessage])
+    
+    // Switch to Images tab when starting generation
+    onImageGenerationStart?.()
+    
+    try {
+      console.log('Generating image with original prompt:', originalPrompt)
+      
+      // Extract the cleaned prompt for the API, but keep the original for display
+      const cleanedPrompt = extractImagePrompt(originalPrompt)
+      console.log('Cleaned prompt for API:', cleanedPrompt)
+      
+      const response = await fetch('/api/generate-image', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          prompt: cleanedPrompt,  // Use cleaned prompt for API
+          originalPrompt: originalPrompt,  // Send original too
+          quality: imageQuality,
+          style: imageStyle,
+          size: imageSize,
+          n: 1,
+        }),
+      }).catch(error => {
+        console.error('Network error:', error)
+        throw new Error('Failed to connect to the server. Make sure the development server is running.')
+      })
+      
+      let data
+      try {
+        data = await response.json()
+      } catch (parseError) {
+        console.error('Failed to parse response:', parseError)
+        throw new Error('Invalid response from image generation API')
+      }
+      
+      if (!response.ok) {
+        console.error('Image generation failed. Status:', response.status)
+        console.error('Response data:', data)
+        
+        // Provide more detailed error message
+        const errorMessage = data?.error || data?.details || `Failed to generate image (Status: ${response.status})`
+        throw new Error(errorMessage)
+      }
+      
+      console.log('Image generation response:', data)
+      
+      // Create GeneratedImage objects from the response
+      const newImages: GeneratedImage[] = data.images.map((img: any) => ({
+        id: generateImageId(),
+        url: img.url,
+        prompt: data.metadata.originalPrompt,
+        revisedPrompt: img.revisedPrompt,
+        timestamp: new Date(),
+        quality: data.metadata.quality,
+        style: data.metadata.style,
+        size: data.metadata.size,
+        model: data.metadata.model,
+      }))
+      
+      // Update state
+      const updatedImages = [...generatedImages, ...newImages]
+      setGeneratedImages(updatedImages)
+      saveGeneratedImages(updatedImages)
+      onGeneratedImagesChange?.(updatedImages)
+      
+      // Add success message to local messages
+      const successMessage = {
+        id: `img-success-${Date.now()}`,
+        role: "assistant" as const,
+        content: `✨ **I've successfully generated your image!**
+
+**Prompt:** "${newImages[0].prompt}"
+**Quality:** ${newImages[0].quality.toUpperCase()}
+**Style:** ${newImages[0].style || imageStyle}
+**Size:** ${newImages[0].size || imageSize}
+
+You can view it in the **Images** tab on the right.`,
+      }
+      setLocalMessages(prev => [...prev, successMessage])
+      
+    } catch (error) {
+      console.error("Image generation error:", error)
+      console.error("Error details:", {
+        message: error instanceof Error ? error.message : 'Unknown error',
+        stack: error instanceof Error ? error.stack : undefined
+      })
+      
+      const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
+      
+      // Check if it's a network error
+      if (errorMessage.includes('Failed to fetch') || errorMessage.includes('NetworkError')) {
+        const errorMsg = {
+          id: `img-error-${Date.now()}`,
+          role: "assistant",
+          content: `❌ I couldn't connect to the image generation service.\n\nPlease check:\n\n1. **Is your development server running?**\n   Run: \`npm run dev\` or \`pnpm dev\`\n\n2. **Did the server crash?**\n   Check your terminal for errors\n\n3. **Is the server running on the correct port?**\n   Should be: http://localhost:3000`,
+        }
+        setLocalMessages(prev => [...prev, errorMsg])
+      } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+        const errorMsg = {
+          id: `img-error-${Date.now()}`,
+          role: "assistant",
+          content: `⏳ Rate limit reached.\n\nThe WaveSpeed API has a rate limit to prevent abuse.\n\n**Solution:** Wait a few seconds and try again.\n\nThis is a fast, high-quality image generation service with reasonable limits.`,
+        }
+        setLocalMessages(prev => [...prev, errorMsg])
+      } else if (errorMessage.includes('timeout')) {
+        const errorMsg = {
+          id: `img-error-${Date.now()}`,
+          role: "assistant",
+          content: `⏱️ Image generation timed out.\n\nThe generation took longer than expected (>30 seconds).\n\n**Solutions:**\n1. Try a simpler prompt\n2. Try again - it might work on the next attempt\n3. Check if the service is experiencing high load`,
+        }
+        setLocalMessages(prev => [...prev, errorMsg])
+      } else {
+        const errorMsg = {
+          id: `img-error-${Date.now()}`,
+          role: "assistant",
+          content: `❌ I couldn't generate the image.\n\n**Error:** ${errorMessage}\n\nPlease try again or check the console for more details.`,
+        }
+        setLocalMessages(prev => [...prev, errorMsg])
+      }
+    } finally {
+      setIsGeneratingImage(false)
+    }
+  }, [generatedImages, onGeneratedImagesChange, onImageGenerationStart])
+  
+  const handleSubmit = useCallback((e?: React.FormEvent) => {
+    // Prevent default form submission
+    if (e) {
+      e.preventDefault()
+    }
+    
+    // Check if we have input or a file
+    if (!input.trim() && !selectedFile) {
+      return
+    }
+    
+    // Check if this is an image generation request
+    if (input.trim() && isImageGenerationRequest(input)) {
+      // Pass the original input, not the extracted prompt
+      handleImageGeneration(input)
+      // Clear the input
+      handleInputChange({ target: { value: '' } } as React.ChangeEvent<HTMLInputElement>)
+      // Don't call originalHandleSubmit for image generation
+      return
+    }
+    
+    // For demo purposes, show the agent task view when submitting a message
+    if (input.toLowerCase().includes("agent") || input.toLowerCase().includes("task")) {
+      setShowAgentTasks(true)
+    }
+    
+    // Store the attachment info before submission
+    if (selectedFile) {
+      pendingAttachmentRef.current = {
+        name: selectedFile.file.name,
+        contentType: selectedFile.file.type,
+        url: selectedFile.preview || '',
+        transcription: selectedFile.transcription,
+        videoThumbnail: selectedFile.videoThumbnail,
+        videoDuration: selectedFile.videoDuration,
+      }
+      console.log('Pending attachment set:', pendingAttachmentRef.current)
+    }
+    
+    // Only call originalHandleSubmit if we have a valid message
+    if (input.trim() || selectedFile) {
+      originalHandleSubmit(e)
+    }
+    
+    // Clear file after submission
+    setSelectedFile(null)
+  }, [input, selectedFile, originalHandleSubmit, handleImageGeneration, handleInputChange])
 
   return (
     <div className="flex flex-col h-full border-r border-[#333333] bg-[#2B2B2B]">
       <div className="p-4 border-b border-[#333333] bg-[#2B2B2B]">
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-semibold text-white">AI Assistant</h1>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowImageSettings(true)}
+            className="text-gray-400 hover:text-white"
+            title="Image Generation Settings"
+          >
+            <Settings className="w-4 h-4" />
+          </Button>
         </div>
         {error && (
           <div className="mt-3 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
@@ -332,6 +545,18 @@ export default function ChatInterface() {
               />
             );
           })}
+          {/* Render local messages (for image generation feedback) */}
+          {localMessages.map((message) => (
+            <ChatMessage 
+              key={message.id} 
+              message={{
+                id: message.id,
+                role: message.role as "user" | "assistant" | "system",
+                content: message.content,
+                createdAt: new Date(),
+              }} 
+            />
+          ))}
           {isLoading && (
             <div className="flex justify-start">
               <div className="max-w-[85%] rounded-xl px-4 py-3 bg-[#3C3C3C]">
@@ -346,6 +571,24 @@ export default function ChatInterface() {
                     />
                   </div>
                   <span className="text-sm text-[#B0B0B0]">Gemini is thinking...</span>
+                </div>
+              </div>
+            </div>
+          )}
+          {isGeneratingImage && (
+            <div className="flex justify-start">
+              <div className="max-w-[85%] rounded-xl px-4 py-3 bg-[#3C3C3C]">
+                <div className="flex items-center space-x-3">
+                  <div className="flex space-x-1">
+                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
+                    <div
+                      className="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:0.2s]"
+                    />
+                    <div
+                      className="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:0.4s]"
+                    />
+                  </div>
+                  <span className="text-sm text-[#B0B0B0]">Generating image with WaveSpeed AI...</span>
                 </div>
               </div>
             </div>
@@ -383,6 +626,17 @@ export default function ChatInterface() {
           <AgentTaskView isVisible={showAgentTasks} onClose={() => setShowAgentTasks(false)} />
         </div>
       )}
+      
+      <ImageGenerationSettings
+        open={showImageSettings}
+        onOpenChange={setShowImageSettings}
+        quality={imageQuality}
+        onQualityChange={setImageQuality}
+        style={imageStyle}
+        onStyleChange={setImageStyle}
+        size={imageSize}
+        onSizeChange={setImageSize}
+      />
     </div>
   )
 }

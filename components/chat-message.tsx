@@ -27,6 +27,29 @@ interface ChatMessageProps {
   }
 }
 
+// Simple markdown parser for bold text and line breaks
+function parseSimpleMarkdown(text: string) {
+  // Split by double asterisks to handle bold text
+  const parts = text.split(/(\*\*[^*]+\*\*)/g)
+  
+  return parts.map((part, index) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      // Remove asterisks and make bold
+      const boldText = part.slice(2, -2)
+      return <strong key={index} className="font-semibold">{boldText}</strong>
+    }
+    
+    // Handle line breaks
+    const lines = part.split('\n')
+    return lines.map((line, lineIndex) => (
+      <span key={`${index}-${lineIndex}`}>
+        {line}
+        {lineIndex < lines.length - 1 && <br />}
+      </span>
+    ))
+  })
+}
+
 export default function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === "user"
   const attachments = message.experimental_attachments
@@ -123,7 +146,7 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               })}
             </div>
           )}
-        <p className="text-sm whitespace-pre-wrap">{message.content}</p>
+        <div className="text-sm whitespace-pre-wrap">{parseSimpleMarkdown(message.content)}</div>
       </div>
     </div>
     

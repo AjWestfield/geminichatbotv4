@@ -4,9 +4,27 @@ import { useState } from "react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Card } from "@/components/ui/card"
 import { Code, ImageIcon, FileText, Eye, Monitor, Video, Music } from "lucide-react"
+import { ImageGallery } from "@/components/image-gallery"
+import { GeneratedImage } from "@/lib/image-utils"
 
-export default function CanvasView() {
-  const [activeTab, setActiveTab] = useState("preview")
+interface CanvasViewProps {
+  generatedImages?: GeneratedImage[]
+  onImagesChange?: (images: GeneratedImage[]) => void
+  activeTab?: string
+  onTabChange?: (tab: string) => void
+}
+
+export default function CanvasView({ 
+  generatedImages = [], 
+  onImagesChange,
+  activeTab: controlledActiveTab,
+  onTabChange 
+}: CanvasViewProps) {
+  const [internalActiveTab, setInternalActiveTab] = useState("preview")
+  
+  // Use controlled tab if provided, otherwise use internal state
+  const activeTab = controlledActiveTab || internalActiveTab
+  const setActiveTab = onTabChange || setInternalActiveTab
 
   return (
     <div className="flex-1 flex flex-col h-full bg-[#1E1E1E]">
@@ -148,16 +166,11 @@ greeting();`}</code>
           </TabsContent>
 
           <TabsContent value="images" className="h-full mt-0">
-            <Card className="w-full h-full flex items-center justify-center bg-[#1A1A1A] border-[#333333]">
-              <div className="text-center p-8">
-                <div className="mx-auto h-16 w-16 rounded-2xl bg-[#2B2B2B] flex items-center justify-center mb-6">
-                  <ImageIcon className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">Generated Images</h3>
-                <p className="text-[#B0B0B0] max-w-md">
-                  AI-generated images will appear here. Ask the assistant to create an image for you.
-                </p>
-              </div>
+            <Card className="w-full h-full bg-[#1A1A1A] border-[#333333] overflow-hidden">
+              <ImageGallery 
+                images={generatedImages} 
+                onImagesChange={onImagesChange}
+              />
             </Card>
           </TabsContent>
 
