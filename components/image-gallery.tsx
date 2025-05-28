@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Download, Trash2, Maximize2, Search, Filter, Wand2 } from "lucide-react"
+import { Download, Trash2, Search, Filter, Wand2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -14,7 +14,9 @@ import {
   formatImageTimestamp,
   getQualityBadgeColor,
   saveGeneratedImages,
-  loadGeneratedImages
+  loadGeneratedImages,
+  clearImageStorage,
+  getStorageInfo
 } from "@/lib/image-utils"
 import { cn } from "@/lib/utils"
 import { ImageEditModal } from "./image-edit-modal"
@@ -32,9 +34,35 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
   const [qualityFilter, setQualityFilter] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(false)
 
-  // Sync with prop changes
+  // Sync with prop changes - preserve local isGenerating state
   useEffect(() => {
-    setImages(propImages)
+    console.log('[ImageGallery] Syncing with prop changes, propImages:', 
+      propImages.map(img => ({ id: img.id, isGenerating: img.isGenerating }))
+    )
+    
+    setImages(prevImages => {
+      // Create a map of existing images with their isGenerating state
+      const existingStates = new Map(
+        prevImages.map(img => [img.id, img.isGenerating])
+      )
+      
+      console.log('[ImageGallery] Existing states:', Array.from(existingStates.entries()))
+      
+      // Update with new images but preserve isGenerating state for existing ones
+      const updated = propImages.map(img => ({
+        ...img,
+        // If this image existed before and had isGenerating=false, keep it false
+        isGenerating: existingStates.has(img.id) 
+          ? (existingStates.get(img.id) ?? img.isGenerating)
+          : img.isGenerating
+      }))
+      
+      console.log('[ImageGallery] Updated images after sync:', 
+        updated.map(img => ({ id: img.id, isGenerating: img.isGenerating }))
+      )
+      
+      return updated
+    })
   }, [propImages])
 
   // Load images from localStorage on mount
@@ -57,8 +85,8 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
 
   // Filter images based on search and quality
   const filteredImages = images.filter(image => {
-    // Only show images with valid URLs
-    if (!image.url || image.url.trim() === '') {
+    // Show images that are generating or have valid URLs
+    if (!image.isGenerating && (!image.url || image.url.trim() === '')) {
       return false
     }
 
@@ -152,9 +180,29 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
           </Select>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-gray-400">
-            {filteredImages.length} {filteredImages.length === 1 ? 'image' : 'images'}
-          </span>
+          <div className="flex items-center gap-3">
+            <span className="text-gray-400">
+              {filteredImages.length} {filteredImages.length === 1 ? 'image' : 'images'}
+            </span>
+            {images.length > 0 && (
+              <>
+                <span className="text-gray-600">•</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (confirm('Clear all saved images? This cannot be undone.')) {
+                      clearImageStorage()
+                      setImages([])
+                      onImagesChange?.([])
+                    }
+                  }}
+                  className="text-gray-400 hover:text-gray-300 underline text-xs"
+                >
+                  Clear storage
+                </button>
+              </>
+            )}
+          </div>
           <span className="text-gray-400">
             Powered by WaveSpeed AI
           </span>
@@ -164,105 +212,119 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
       {/* Image Grid */}
       <ScrollArea className="flex-1 p-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {filteredImages.map((image) => (
-            <div
-              key={image.id}
-              className="group relative aspect-square rounded-lg overflow-hidden bg-[#1A1A1A] cursor-pointer hover:ring-2 hover:ring-white/20 transition-all w-full"
-              onClick={() => setSelectedImage(image)}
-              role="button"
-              tabIndex={0}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter' || e.key === ' ') {
-                  e.preventDefault()
-                  setSelectedImage(image)
-                }
-              }}
-              aria-label={`View image: ${image.prompt}`}
-            >
-              {image.url ? (
-                <img
-                  src={image.url}
-                  alt={image.prompt}
-                  className="w-full h-full object-cover"
-                  loading="lazy"
+          {filteredImages.map((image) => {
+            return (
+              <div
+                key={image.id}
+                className="group relative aspect-square rounded-lg overflow-hidden bg-[#1A1A1A] hover:ring-2 hover:ring-white/20 transition-all w-full"
+              >
+                {/* Clickable overlay */}
+                <button
+                  type="button"
+                  className="absolute inset-0 w-full h-full bg-transparent cursor-pointer z-10"
+                  onClick={() => setSelectedImage(image)}
+                  aria-label={`View image: ${image.prompt}`}
+                  disabled={image.isGenerating}
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-[#2B2B2B]">
-                  <div className="text-center">
-                    <div className="w-12 h-12 mx-auto mb-2 rounded-full bg-[#3C3C3C] flex items-center justify-center">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" aria-label="Image not available">
-                        <title>Image not available</title>
-                        <path d="M21 15V19C21 19.5304 20.7893 20.0391 20.4142 20.4142C20.0391 20.7893 19.5304 21 19 21H5C4.46957 21 3.96086 20.7893 3.58579 20.4142C3.21071 20.0391 3 19.5304 3 19V15" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M17 8L12 3L7 8" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                        <path d="M12 3V15" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
-                      </svg>
+                
+                {image.url ? (
+                  <img
+                    src={image.url}
+                    alt={image.prompt}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                ) : (
+                  // Show placeholder while generating
+                  <div className="w-full h-full bg-[#1A1A1A] flex items-center justify-center">
+                    <div className="text-center p-4">
+                      <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-[#3C3C3C] flex items-center justify-center">
+                        <svg 
+                          width="32" 
+                          height="32" 
+                          viewBox="0 0 24 24" 
+                          fill="none" 
+                          xmlns="http://www.w3.org/2000/svg"
+                          className="animate-pulse"
+                        >
+                          <title>Image being generated</title>
+                          <path d="M20 12V7C20 5.34315 18.6569 4 17 4H7C5.34315 4 4 5.34315 4 7V17C4 18.6569 5.34315 20 7 20H12" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round"/>
+                          <path d="M10 9C10 9.55228 9.55228 10 9 10C8.44772 10 8 9.55228 8 9C8 8.44772 8.44772 8 9 8C9.55228 8 10 8.44772 10 9Z" fill="#B0B0B0"/>
+                          <path d="M4 16L8.58579 11.4142C9.36683 10.6332 10.6332 10.6332 11.4142 11.4142L16 16" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round"/>
+                          <path d="M14 14L15.5858 12.4142C16.3668 11.6332 17.6332 11.6332 18.4142 12.4142L20 14" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round"/>
+                          <path d="M16 19L19 19M17.5 17.5V20.5" stroke="#B0B0B0" strokeWidth="2" strokeLinecap="round"/>
+                        </svg>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-2">
+                        {image.isGenerating ? 'Generating...' : 'Loading...'}
+                      </p>
                     </div>
-                    <p className="text-xs text-gray-400">Image not available</p>
                   </div>
-                </div>
-              )}
+                )}
 
-              {/* Overlay with actions */}
-              <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity">
-                <div className="absolute top-2 right-2 flex gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 bg-black/50 hover:bg-black/70"
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      setEditingImage(image)
-                    }}
-                    title="Edit image"
-                  >
-                    <Wand2 className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 bg-black/50 hover:bg-black/70"
-                    onClick={(e) => handleDownload(image, e)}
-                    disabled={isLoading}
-                    title="Download image"
-                  >
-                    <Download className="w-4 h-4" />
-                  </Button>
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="w-8 h-8 bg-black/50 hover:bg-black/70 hover:text-red-400"
-                    onClick={(e) => handleDelete(image.id, e)}
-                    title="Delete image"
-                  >
-                    <Trash2 className="w-4 h-4" />
-                  </Button>
-                </div>
-
-                {/* Image info */}
-                <div className="absolute bottom-0 left-0 right-0 p-3">
-                  <p className="text-white text-sm font-medium line-clamp-2 mb-1">
-                    {image.prompt}
-                  </p>
-                  <div className="flex items-center gap-2">
-                    {image.originalImageId && (
-                      <Badge variant="secondary" className="text-xs">
-                        Edited
-                      </Badge>
-                    )}
-                    <Badge
-                      variant="outline"
-                      className={cn("text-xs border", getQualityBadgeColor(image.quality))}
+                {/* Overlay with actions */}
+                <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
+                  <div className="absolute top-2 right-2 flex gap-2 pointer-events-auto z-20">
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="w-8 h-8 bg-black/50 hover:bg-black/70"
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setEditingImage(image)
+                      }}
+                      disabled={image.isGenerating || !image.url}
+                      title="Edit image"
                     >
-                      {image.quality}
-                    </Badge>
-                    <span className="text-xs text-gray-400">
-                      {formatImageTimestamp(image.timestamp)}
-                    </span>
+                      <Wand2 className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="w-8 h-8 bg-black/50 hover:bg-black/70"
+                      onClick={(e) => handleDownload(image, e)}
+                      disabled={isLoading || image.isGenerating || !image.url}
+                      title="Download image"
+                    >
+                      <Download className="w-4 h-4" />
+                    </Button>
+                    <Button
+                      size="icon"
+                      variant="ghost"
+                      className="w-8 h-8 bg-black/50 hover:bg-black/70 hover:text-red-400"
+                      onClick={(e) => handleDelete(image.id, e)}
+                      title="Delete image"
+                    >
+                      <Trash2 className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  {/* Image info */}
+                  <div className="absolute bottom-0 left-0 right-0 p-3">
+                    <p className="text-white text-sm font-medium line-clamp-2 mb-1">
+                      {image.prompt}
+                    </p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      {image.originalImageId && (
+                        <Badge variant="secondary" className="text-xs">
+                          Edited
+                        </Badge>
+                      )}
+                      <Badge
+                        variant="outline"
+                        className={cn("text-xs border", getQualityBadgeColor(image.quality))}
+                      >
+                        {image.quality}
+                      </Badge>
+                      <span className="text-xs text-gray-400">
+                        {formatImageTimestamp(image.timestamp)}
+                      </span>
+                    </div>
                   </div>
                 </div>
               </div>
-            </div>
-          ))}
+            )
+          })}
         </div>
       </ScrollArea>
 
@@ -313,15 +375,30 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
                 )}
 
                 <div className="flex items-center justify-between pt-3 border-t border-[#333333]">
-                  <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-3 flex-wrap">
                     <Badge
                       variant="outline"
                       className={cn("border", getQualityBadgeColor(selectedImage.quality))}
                     >
                       {selectedImage.quality} quality
                     </Badge>
+                    {selectedImage.model && (
+                      <Badge
+                        variant="outline"
+                        className="border-gray-500/30"
+                      >
+                        {selectedImage.model.includes('gpt-image-1') ? 'GPT-Image-1' :
+                         selectedImage.model.includes('dall-e') ? 'DALL-E' : 
+                         selectedImage.model.includes('flux') ? 'WaveSpeed AI' : 
+                         selectedImage.model}
+                      </Badge>
+                    )}
                     <span className="text-sm text-gray-400">
-                      Generated {formatImageTimestamp(selectedImage.timestamp)}
+                      Generated {formatImageTimestamp(
+                        selectedImage.timestamp instanceof Date 
+                          ? selectedImage.timestamp 
+                          : new Date(selectedImage.timestamp)
+                      )}
                     </span>
                   </div>
 

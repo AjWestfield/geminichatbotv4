@@ -1,307 +1,186 @@
-# Gemini AI Chatbot with Multimodal Support
+# Gemini Chatbot v2 🚀
 
-A modern, feature-rich AI chatbot application built with Next.js 15, React 19, and Google Gemini AI. This application supports text conversations, image analysis, audio transcription, and comprehensive video analysis with a beautiful dark-themed UI.
+A modern, feature-rich AI chatbot application powered by Google Gemini, with advanced image generation capabilities using GPT-Image-1 and WaveSpeed AI.
 
-![Next.js](https://img.shields.io/badge/Next.js-15.2.4-black?style=flat-square&logo=next.js)
-![React](https://img.shields.io/badge/React-19.0.0-blue?style=flat-square&logo=react)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=flat-square&logo=typescript)
-![Gemini AI](https://img.shields.io/badge/Gemini-AI-blue?style=flat-square&logo=google)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-blue?style=flat-square&logo=tailwindcss)
+![Gemini Chatbot v2](https://img.shields.io/badge/Next.js-15.2.4-black?style=for-the-badge&logo=next.js)
+![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)
+![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwind-css)
 
 ## ✨ Features
 
-### 🤖 AI Capabilities
+### 🤖 AI Chat
+- **Multiple Gemini Models**: Gemini 2.5 Flash, Gemini Pro, Gemini 2.0 Flash
+- **Real-time Streaming**: Smooth, responsive chat experience
+- **File Attachments**: Support for images, PDFs, and documents
+- **Smart Context**: Maintains conversation history
 
-- **Multiple AI Models**: Support for Gemini 2.5 Flash, 2.5 Pro, and 2.0 Flash
-- **Image Generation**: Create images using WaveSpeed AI's Flux Dev Ultra Fast model
-- **Image Editing**: Edit images using OpenAI's GPT-Image-1 multimodal model
-- **Streaming Responses**: Real-time AI responses with typing indicators
-- **Context Awareness**: Maintains conversation history
-- **Smart Token Management**: 8192 tokens for video analysis, 4096 for general content
+### 🎨 Image Generation
+- **Dual Model System**:
+  - **HD Quality**: GPT-Image-1 for photorealistic, detailed images
+  - **Standard Quality**: WaveSpeed AI (Flux Dev Ultra Fast) for quick generation
+- **Advanced Features**:
+  - Image editing capabilities
+  - Gallery view with search and filtering
+  - Download and management tools
+  - Smart storage management
 
-### 📁 Multimodal Support
+### 📱 Multimodal Support
+- **Image Analysis**: Upload and analyze images with AI
+- **Audio Transcription**: Automatic transcription via Whisper
+- **Video Analysis**: Full video analysis with transcription
+- **Document Processing**: PDF and document analysis
 
-- **Images**: Upload and analyze images (JPEG, PNG, WebP, HEIC/HEIF)
-- **Audio**: Upload audio files with automatic transcription via OpenAI Whisper
-- **Video**: Comprehensive video analysis with scene detection and audio transcription
-  - Automatic thumbnail generation
-  - Timeline with timestamps
-  - Full audio narration transcription
-  - Scene-by-scene breakdown
-- **AI Image Generation**: Generate images from text prompts
-  - Multiple quality levels (low, medium, high)
-  - Gallery view with search and filters
-  - Download and management features
-- **AI Image Editing**: Edit existing images with GPT-Image-1
-  - Advanced multimodal image-to-image transformation
-  - Enhanced instruction following
-  - High-resolution outputs (up to 1536×1024)
-  - Accurate text rendering in images
-  - Future support for inpainting with masks
-
-### 🎨 User Interface
-
-- **Modern Dark Theme**: Sleek, professional dark UI
-- **Resizable Panels**: Adjustable chat and canvas view
-- **Rich Media Previews**: Inline previews for all uploaded files
-- **Interactive Modals**: Full-screen previews for media content
-- **Progress Indicators**: Real-time upload and transcription progress
-- **Responsive Design**: Works on desktop and mobile devices
-
-### 🎥 Video Features
-
-- **Supported Formats**: MP4, MOV, AVI, WebM, MPEG
-- **Thumbnail Generation**: Automatic preview at 2-second mark
-- **Duration Display**: Shows video length in UI
-- **Transcription**: Full audio track transcription (up to 25MB)
-- **Interactive Player**:
-  - Full video controls
-  - Tabbed transcription view
-  - Timed segments with click-to-seek
-  - Active segment highlighting
+### 🎯 UI/UX Improvements
+- **Resizable Split View**: Adjustable panels for optimal workflow
+- **Dark Theme**: Modern, eye-friendly interface
+- **Toast Notifications**: Visual feedback for all actions
+- **Progress Tracking**: Real-time upload and generation progress
+- **Responsive Design**: Works seamlessly on all devices
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-
-- Node.js 18+ (Required for Next.js 15)
-- npm or pnpm
-- Google Gemini API key
-- OpenAI API key (for audio/video transcription)
-- WaveSpeed API key (for image generation)
+- Node.js 20.x or higher
+- npm or yarn
+- API keys for various services
 
 ### Installation
 
-1. **Clone the repository**
-
-   ```bash
-   git clone https://github.com/yourusername/geminichatbot.git
-   cd geminichatbot
-   ```
-
-2. **Install dependencies**
-
-   ```bash
-   npm install
-   # or
-   pnpm install
-   ```
-
-3. **Set up environment variables**
-
-   Create a `.env.local` file in the root directory by copying the example:
-
-   ```bash
-   cp .env.example .env.local
-   ```
-
-   Then edit `.env.local` and add your API keys:
-
-   ```env
-   # Google Gemini API Key (Required)
-   GEMINI_API_KEY=your_gemini_api_key_here
-
-   # OpenAI API Key (Optional - for audio/video transcription)
-   OPENAI_API_KEY=your_openai_api_key_here
-
-   # WaveSpeed API Key (Optional - for image generation)
-   WAVESPEED_API_KEY=your_wavespeed_api_key_here
-   ```
-
-   **🔒 Security Note**: Never commit `.env.local` or any file containing API keys to version control. The `.gitignore` file is already configured to exclude these files.
-
-4. **Verify your API keys**
-
-   ```bash
-   npm run check-api-keys
-   ```
-
-   This will show you which API keys are configured and which features are available.
-
-5. **Run the development server**
-
-   ```bash
-   npm run dev
-   # or
-   pnpm dev
-   ```
-
-6. **Open your browser**
-
-   Navigate to [http://localhost:3000](http://localhost:3000)
-
-## 📋 Configuration
-
-### API Keys
-
-1. **Google Gemini API Key**
-   - Get your API key from [Google AI Studio](https://makersuite.google.com/app/apikey)
-   - Add to `.env.local` as `GEMINI_API_KEY`
-
-2. **OpenAI API Key** (for transcription)
-   - Get your API key from [OpenAI Platform](https://platform.openai.com/api-keys)
-   - Add to `.env.local` as `OPENAI_API_KEY`
-
-3. **WaveSpeed API Key** (for image generation)
-   - Get your API key from [WaveSpeed AI](https://wavespeed.ai)
-   - Add to `.env.local` as `WAVESPEED_API_KEY`
-
-### Model Selection
-
-You can switch between different Gemini models in the chat interface:
-
-- **Gemini 2.5 Flash**: Fast responses, good for general use
-- **Gemini 2.5 Pro**: Advanced reasoning, better for complex tasks
-- **Gemini 2.0 Flash**: Experimental features, optimized for video
-
-## 🎯 Usage
-
-### Basic Chat
-
-1. Type your message in the input field
-2. Press Enter or click the send button
-3. AI responds in real-time with streaming text
-
-### Image Analysis
-
-1. Click the paperclip icon
-2. Select an image file
-3. Optionally add a question about the image
-4. Send to get AI analysis
-
-### Audio Processing
-
-1. Upload an audio file (MP3, WAV, etc.)
-2. Automatic transcription via Whisper AI
-3. Preview transcription before sending
-4. AI analyzes both content and context
-
-### Video Analysis
-
-1. Upload a video file (MP4, MOV, etc.)
-2. Thumbnail generates automatically
-3. Audio track transcribes if present
-4. Send for comprehensive analysis including:
-   - Visual scene descriptions
-   - Audio/narration transcription
-   - Timeline with timestamps
-   - Technical quality assessment
-
-## 🏗️ Architecture
-
-### Tech Stack
-
-- **Framework**: Next.js 15 (App Router)
-- **UI Library**: React 19
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS
-- **UI Components**: shadcn/ui (Radix UI)
-- **AI Integration**:
-  - Google Gemini AI (Visual analysis)
-  - OpenAI Whisper (Audio transcription)
-  - OpenAI GPT-Image-1 (Image editing)
-  - WaveSpeed AI (Image generation)
-- **State Management**: React Hooks
-- **Streaming**: Server-Sent Events (SSE)
-
-### Project Structure
-
-```text
-geminichatbot/
-├── app/                    # Next.js app directory
-│   ├── api/               # API routes
-│   │   ├── chat/         # Chat endpoint
-│   │   ├── upload/       # File upload
-│   │   └── transcribe/   # Audio transcription
-│   ├── layout.tsx        # Root layout
-│   └── page.tsx          # Home page
-├── components/            # React components
-│   ├── ui/               # UI components
-│   ├── chat-interface.tsx
-│   ├── chat-message.tsx
-│   └── file-preview-modal.tsx
-├── lib/                   # Utilities
-│   ├── utils.ts
-│   └── video-utils.ts
-├── public/               # Static assets
-└── styles/              # Global styles
+1. Clone the repository:
+```bash
+git clone https://github.com/ajwestfield/geminichatbotv2.git
+cd geminichatbotv2
 ```
 
-## 🔧 API Reference
+2. Install dependencies:
+```bash
+npm install
+```
 
-### Chat Endpoint
+3. Set up environment variables:
+```bash
+cp .env.example .env.local
+```
 
-`POST /api/chat`
+4. Add your API keys to `.env.local`:
+```env
+# Gemini API
+GEMINI_API_KEY=your_gemini_api_key
 
-- Handles chat messages with optional file attachments
-- Supports streaming responses
-- Token limits: 8192 for video, 4096 for general
+# Image Generation
+OPENAI_API_KEY=your_openai_api_key
+WAVESPEED_API_KEY=your_wavespeed_api_key
 
-### Upload Endpoint
+# Optional Services
+ANTHROPIC_API_KEY=your_anthropic_api_key
+REPLICATE_API_KEY=your_replicate_api_key
+TAVILY_API_KEY=your_tavily_api_key
 
-`POST /api/upload`
+# Storage
+BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
 
-- Uploads files to Google Gemini
-- Validates file types and sizes
-- Returns file URI for chat integration
+# Database (optional)
+POSTGRES_URL=your_postgres_url
+REDIS_URL=your_redis_url
+```
 
-### Transcribe Endpoint
+5. Run the development server:
+```bash
+npm run dev
+```
 
-`POST /api/transcribe`
+Open [http://localhost:3000](http://localhost:3000) to see the app.
 
-- Transcribes audio/video files using Whisper
-- 25MB file size limit
-- Returns text, language, duration, and segments
+## 🛠️ Tech Stack
 
-## 🚨 Troubleshooting
+- **Framework**: Next.js 15.2.4 (App Router)
+- **Language**: TypeScript
+- **Styling**: Tailwind CSS + shadcn/ui
+- **AI Models**: 
+  - Google Gemini (2.5 Flash, Pro, 2.0 Flash)
+  - OpenAI GPT-Image-1
+  - WaveSpeed AI (Flux Dev)
+- **State Management**: React Hooks + Context
+- **Animation**: Framer Motion
+- **Storage**: LocalStorage with smart quota management
 
-### Common Issues
+## 📊 Model Comparison
 
-1. **Video analysis truncated**
-   - Fixed: Token limit increased to 8192
-   - Comprehensive prompts ensure full analysis
+| Feature | GPT-Image-1 (HD) | WaveSpeed AI (Standard) |
+|---------|-----------------|------------------------|
+| Quality | Photorealistic, detailed | Good quality, fast |
+| Speed | 30-45 seconds | 3-5 seconds |
+| Text Rendering | Excellent | Good |
+| Best For | Professional work, text | Quick iterations |
 
-2. **Transcription fails**
-   - Check file size (< 25MB)
-   - Verify OpenAI API key
-   - Ensure audio track exists
+## 🔧 Key Improvements in v2
 
-3. **Upload errors**
-   - Check file format support
-   - Verify Gemini API key
-   - Check internet connection
+### Performance
+- ✅ Optimized localStorage management (auto-cleanup, size limits)
+- ✅ Efficient image gallery with lazy loading
+- ✅ Smart caching strategies
 
-4. **Node.js version error**
-   - Requires Node.js 18+
-   - Update Node.js: `nvm install 18`
+### Reliability
+- ✅ Comprehensive error handling
+- ✅ Automatic fallback systems
+- ✅ Graceful degradation
+
+### User Experience
+- ✅ Simplified loading states
+- ✅ Clear visual feedback
+- ✅ Intuitive model selection
+- ✅ Storage management tools
+
+### Code Quality
+- ✅ TypeScript throughout
+- ✅ Clean component architecture
+- ✅ Comprehensive error boundaries
+- ✅ Proper state management
+
+## 📝 Usage Examples
+
+### Chat with Gemini
+```
+"Explain quantum computing in simple terms"
+"Write a Python script to analyze CSV files"
+"Help me plan a trip to Japan"
+```
+
+### Generate Images
+**HD Quality (GPT-Image-1)**:
+```
+"Create a photorealistic portrait of a cyberpunk astronaut"
+"Design a modern logo with the text 'FUTURE TECH'"
+```
+
+**Standard Quality (WaveSpeed)**:
+```
+"Simple cartoon cat illustration"
+"Abstract geometric pattern"
+```
 
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
 
-1. Fork the repository
-2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to the branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
+## 📄 License
 
-## 📝 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+This project is licensed under the MIT License - see the LICENSE file for details.
 
 ## 🙏 Acknowledgments
 
-- [Next.js](https://nextjs.org/) - The React framework
-- [Google Gemini AI](https://deepmind.google/technologies/gemini/) - Multimodal AI model
-- [OpenAI Whisper](https://openai.com/research/whisper) - Speech recognition
-- [shadcn/ui](https://ui.shadcn.com/) - UI components
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [Vercel](https://vercel.com/) - Deployment platform
+- Google Gemini team for the amazing AI models
+- OpenAI for GPT-Image-1
+- WaveSpeed AI for fast image generation
+- shadcn/ui for the beautiful components
+- All contributors and testers
 
-## 📞 Support
+## 📧 Contact
 
-For support, please open an issue in the GitHub repository or contact the maintainers.
+Anderson Westfield - [@ajwestfield](https://github.com/ajwestfield)
+
+Project Link: [https://github.com/ajwestfield/geminichatbotv2](https://github.com/ajwestfield/geminichatbotv2)
 
 ---
 
-Built with ❤️ using Next.js and Gemini AI
+Built with ❤️ by Anderson Westfield

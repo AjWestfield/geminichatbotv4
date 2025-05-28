@@ -8,7 +8,19 @@ body {
 
 @layer utilities {
   .text-balance {
-    text-wrap: balance;
+    /* Fallback for browsers that don't support text-wrap: balance */
+    overflow-wrap: break-word;
+    word-wrap: break-word;
+    hyphens: auto;
+    -webkit-hyphens: auto;
+    -ms-hyphens: auto;
+  }
+
+  /* Progressive enhancement for modern browsers */
+  @supports (text-wrap: balance) {
+    .text-balance {
+      text-wrap: balance;
+    }
   }
 }
 

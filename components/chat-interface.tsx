@@ -11,7 +11,7 @@ import { UploadProgress } from "./upload-progress"
 import { AnimatePresence } from "framer-motion"
 import { generateVideoThumbnail, getVideoDuration } from "@/lib/video-utils"
 import { 
-  GeneratedImage, 
+  type GeneratedImage, 
   generateImageId, 
   isImageGenerationRequest, 
   extractImagePrompt,
@@ -34,7 +34,11 @@ interface FileUpload {
     text: string
     language?: string
     duration?: number
-    segments?: any[] // For detailed timing info
+    segments?: Array<{
+      start: number
+      end: number
+      text: string
+    }> // For detailed timing info
   }
   videoThumbnail?: string // Add this for video thumbnail
   videoDuration?: number // Add this for video duration
@@ -56,13 +60,55 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   
   // Image generation settings
-  const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>('standard')
+  const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>(() => {
+    // Load saved quality preference from localStorage
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('imageGenerationQuality')
+      if (saved === 'standard' || saved === 'hd') {
+        console.log('Loaded saved quality preference:', saved)
+        return saved
+      }
+    }
+    return 'hd' // Default to 'hd' for GPT-Image-1
+  })
   const [imageStyle, setImageStyle] = useState<'vivid' | 'natural'>('vivid')
   const [imageSize, setImageSize] = useState<'1024x1024' | '1792x1024' | '1024x1792'>('1024x1024')
   const [showImageSettings, setShowImageSettings] = useState(false)
   
   // Store object URLs for cleanup
   const objectURLsRef = useRef<Set<string>>(new Set())
+  
+  // Use a ref to store the current quality to avoid stale closures
+  const imageQualityRef = useRef(imageQuality)
+  
+  // Debug: Log quality changes 
+  useEffect(() => {
+    console.log('Image quality setting changed to:', imageQuality)
+    console.log('Current image generation model:', imageQuality === 'hd' ? 'GPT-Image-1' : 'WaveSpeed AI')
+    // Update the ref whenever imageQuality changes
+    imageQualityRef.current = imageQuality
+    // Save preference to localStorage
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('imageGenerationQuality', imageQuality)
+    }
+  }, [imageQuality])
+  
+  // Wrapper function for setImageQuality with logging
+  const updateImageQuality = useCallback((newQuality: 'standard' | 'hd') => {
+    console.log('[updateImageQuality] Changing from', imageQuality, 'to', newQuality)
+    setImageQuality(newQuality)
+  }, [imageQuality])
+  
+  // Callback to handle settings dialog close
+  const handleSettingsClose = useCallback((open: boolean) => {
+    setShowImageSettings(open)
+    if (!open) {
+      // Log current settings when dialog closes
+      console.log('Settings dialog closed. Current quality:', imageQuality)
+      console.log('Settings dialog closed. Current style:', imageStyle)
+      console.log('Settings dialog closed. Current size:', imageSize)
+    }
+  }, [imageQuality, imageStyle, imageSize])
   
   // Load generated images on mount
   useEffect(() => {
@@ -71,7 +117,7 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
       setGeneratedImages(savedImages)
       onGeneratedImagesChange?.(savedImages)
     }
-  }, [])
+  }, [onGeneratedImagesChange])
 
   // Store file attachments for each message
   const [messageAttachments, setMessageAttachments] = useState<Record<string, {
@@ -82,7 +128,11 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
       text: string
       language?: string
       duration?: number
-      segments?: any[]
+      segments?: Array<{
+        start: number
+        end: number
+        text: string
+      }>
     }
     videoThumbnail?: string // Add this
     videoDuration?: number // Add this
@@ -97,13 +147,17 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
       text: string
       language?: string
       duration?: number
-      segments?: any[]
+      segments?: Array<{
+        start: number
+        end: number
+        text: string
+      }>
     }
     videoThumbnail?: string // Add this
     videoDuration?: number // Add this
   } | null>(null)
 
-  const { messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, error, stop, append } = useChat({
+  const { messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, error, stop } = useChat({
     api: "/api/chat",
     body: {
       model: selectedModel,
@@ -335,12 +389,48 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
     // Switch to Images tab when starting generation
     onImageGenerationStart?.()
     
+    // Create a placeholder image with generating state
+    const placeholderId = generateImageId()
+    const placeholderImage: GeneratedImage = {
+      id: placeholderId,
+      url: '', // Empty URL while generating
+      prompt: originalPrompt,
+      timestamp: new Date(),
+      quality: imageQualityRef.current,
+      style: imageStyle,
+      size: imageSize,
+      model: imageQualityRef.current === 'hd' ? 'gpt-image-1' : 'flux-dev-ultra-fast',
+      isGenerating: true,
+      generationStartTime: new Date(),
+    }
+    
+    // Add placeholder to gallery immediately using functional update
+    setGeneratedImages(prevImages => {
+      const updatedWithPlaceholder = [...prevImages, placeholderImage]
+      console.log('Adding placeholder image:', placeholderImage)
+      console.log('Updated images with placeholder:', updatedWithPlaceholder)
+      // Defer the parent state update to avoid setState during render
+      setTimeout(() => {
+        onGeneratedImagesChange?.(updatedWithPlaceholder)
+      }, 0)
+      return updatedWithPlaceholder
+    })
+    
     try {
       console.log('Generating image with original prompt:', originalPrompt)
       
       // Extract the cleaned prompt for the API, but keep the original for display
       const cleanedPrompt = extractImagePrompt(originalPrompt)
       console.log('Cleaned prompt for API:', cleanedPrompt)
+      
+      // Use the ref to get the current quality value to avoid stale closures
+      const currentQuality = imageQualityRef.current
+      console.log('Current quality setting from ref:', currentQuality) // Debug log
+      console.log('Sending request with quality:', currentQuality) // Additional debug
+      
+      // Double-check the quality value
+      const qualityToSend = currentQuality
+      console.log('Quality value being sent to API:', qualityToSend)
       
       const response = await fetch('/api/generate-image', {
         method: 'POST',
@@ -350,7 +440,7 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
         body: JSON.stringify({
           prompt: cleanedPrompt,  // Use cleaned prompt for API
           originalPrompt: originalPrompt,  // Send original too
-          quality: imageQuality,
+          quality: qualityToSend,
           style: imageStyle,
           size: imageSize,
           n: 1,
@@ -360,7 +450,25 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
         throw new Error('Failed to connect to the server. Make sure the development server is running.')
       })
       
-      let data
+      let data: {
+        success: boolean
+        images: Array<{
+          url: string
+          revisedPrompt?: string
+          index: number
+        }>
+        metadata: {
+          model: string
+          provider: string
+          quality: string
+          style: string
+          size: string
+          originalPrompt: string
+          imageCount: number
+        }
+        error?: string
+        details?: string
+      }
       try {
         data = await response.json()
       } catch (parseError) {
@@ -379,34 +487,56 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
       
       console.log('Image generation response:', data)
       
-      // Create GeneratedImage objects from the response
-      const newImages: GeneratedImage[] = data.images.map((img: any) => ({
-        id: generateImageId(),
+      // Update the placeholder image with the actual result
+      const newImages: GeneratedImage[] = data.images.map((img) => ({
+        id: placeholderId, // Use the placeholder ID to update it
         url: img.url,
         prompt: data.metadata.originalPrompt,
         revisedPrompt: img.revisedPrompt,
         timestamp: new Date(),
-        quality: data.metadata.quality,
-        style: data.metadata.style,
+        quality: data.metadata.quality as 'standard' | 'hd',
+        style: data.metadata.style as 'vivid' | 'natural' | undefined,
         size: data.metadata.size,
         model: data.metadata.model,
+        isGenerating: false, // Image is done generating
+        generationStartTime: placeholderImage.generationStartTime,
+        urlAvailableTime: new Date(), // Track when URL became available
       }))
       
-      // Update state
-      const updatedImages = [...generatedImages, ...newImages]
-      setGeneratedImages(updatedImages)
-      saveGeneratedImages(updatedImages)
-      onGeneratedImagesChange?.(updatedImages)
+      // Update state by replacing the placeholder using functional update
+      console.log('Updating placeholder with actual image:', {
+        placeholderId,
+        newImageUrl: newImages[0]?.url,
+        newImage: newImages[0]
+      })
+      
+      setGeneratedImages(prevImages => {
+        console.log('Previous images:', prevImages)
+        const updatedImages = prevImages.map(img => 
+          img.id === placeholderId ? newImages[0] : img
+        )
+        console.log('Updated images:', updatedImages)
+        saveGeneratedImages(updatedImages)
+        // Defer the parent state update to avoid setState during render
+        setTimeout(() => {
+          onGeneratedImagesChange?.(updatedImages)
+        }, 0)
+        return updatedImages
+      })
       
       // Add success message to local messages
+      const modelName = data.metadata.model.includes('gpt-image-1') ? 'GPT-Image-1' :
+                       data.metadata.model.includes('dall-e') ? 'DALL-E' : 
+                       data.metadata.model.includes('flux') ? 'WaveSpeed AI' :
+                       data.metadata.model
       const successMessage = {
         id: `img-success-${Date.now()}`,
         role: "assistant" as const,
         content: `✨ **I've successfully generated your image!**
 
 **Prompt:** "${newImages[0].prompt}"
-**Quality:** ${newImages[0].quality.toUpperCase()}
-**Style:** ${newImages[0].style || imageStyle}
+**Model:** ${modelName}${data.metadata.model.includes('fallback') ? ' (fallback)' : ''}
+**Quality:** ${newImages[0].quality?.toUpperCase() || currentQuality.toUpperCase()}
 **Size:** ${newImages[0].size || imageSize}
 
 You can view it in the **Images** tab on the right.`,
@@ -420,6 +550,16 @@ You can view it in the **Images** tab on the right.`,
         stack: error instanceof Error ? error.stack : undefined
       })
       
+      // Remove the placeholder on error using functional update
+      setGeneratedImages(prevImages => {
+        const updatedAfterError = prevImages.filter(img => img.id !== placeholderId)
+        // Defer the parent state update to avoid setState during render
+        setTimeout(() => {
+          onGeneratedImagesChange?.(updatedAfterError)
+        }, 0)
+        return updatedAfterError
+      })
+      
       const errorMessage = error instanceof Error ? error.message : "Unknown error occurred"
       
       // Check if it's a network error
@@ -431,17 +571,18 @@ You can view it in the **Images** tab on the right.`,
         }
         setLocalMessages(prev => [...prev, errorMsg])
       } else if (errorMessage.includes('429') || errorMessage.includes('rate limit')) {
+        const modelName = imageQualityRef.current === 'hd' ? 'GPT-Image-1' : 'WaveSpeed';
         const errorMsg = {
           id: `img-error-${Date.now()}`,
           role: "assistant",
-          content: `⏳ Rate limit reached.\n\nThe WaveSpeed API has a rate limit to prevent abuse.\n\n**Solution:** Wait a few seconds and try again.\n\nThis is a fast, high-quality image generation service with reasonable limits.`,
+          content: `⏳ Rate limit reached.\n\nThe ${modelName} API has a rate limit to prevent abuse.\n\n**Solution:** Wait a few seconds and try again.\n\n${imageQualityRef.current === 'hd' ? 'GPT-Image-1 is a premium service with token-based limits.' : 'This is a fast, high-quality image generation service with reasonable limits.'}`,
         }
         setLocalMessages(prev => [...prev, errorMsg])
       } else if (errorMessage.includes('timeout')) {
         const errorMsg = {
           id: `img-error-${Date.now()}`,
           role: "assistant",
-          content: `⏱️ Image generation timed out.\n\nThe generation took longer than expected (>30 seconds).\n\n**Solutions:**\n1. Try a simpler prompt\n2. Try again - it might work on the next attempt\n3. Check if the service is experiencing high load`,
+          content: "⏱️ Image generation timed out.\n\nThe generation took longer than expected (>30 seconds).\n\n**Solutions:**\n1. Try a simpler prompt\n2. Try again - it might work on the next attempt\n3. Check if the service is experiencing high load",
         }
         setLocalMessages(prev => [...prev, errorMsg])
       } else {
@@ -455,7 +596,7 @@ You can view it in the **Images** tab on the right.`,
     } finally {
       setIsGeneratingImage(false)
     }
-  }, [generatedImages, onGeneratedImagesChange, onImageGenerationStart])
+  }, [onGeneratedImagesChange, onImageGenerationStart, imageStyle, imageSize])
   
   const handleSubmit = useCallback((e?: React.FormEvent) => {
     // Prevent default form submission
@@ -580,15 +721,13 @@ You can view it in the **Images** tab on the right.`,
               <div className="max-w-[85%] rounded-xl px-4 py-3 bg-[#3C3C3C]">
                 <div className="flex items-center space-x-3">
                   <div className="flex space-x-1">
-                    <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" />
-                    <div
-                      className="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:0.2s]"
-                    />
-                    <div
-                      className="w-2 h-2 bg-blue-400 rounded-full animate-pulse [animation-delay:0.4s]"
-                    />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse" />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse [animation-delay:0.2s]" />
+                    <div className="w-2 h-2 rounded-full bg-gray-400 animate-pulse [animation-delay:0.4s]" />
                   </div>
-                  <span className="text-sm text-[#B0B0B0]">Generating image with WaveSpeed AI...</span>
+                  <span className="text-sm text-[#B0B0B0]">
+                    Generating image...
+                  </span>
                 </div>
               </div>
             </div>
@@ -629,9 +768,9 @@ You can view it in the **Images** tab on the right.`,
       
       <ImageGenerationSettings
         open={showImageSettings}
-        onOpenChange={setShowImageSettings}
+        onOpenChange={handleSettingsClose}
         quality={imageQuality}
-        onQualityChange={setImageQuality}
+        onQualityChange={updateImageQuality}
         style={imageStyle}
         onStyleChange={setImageStyle}
         size={imageSize}

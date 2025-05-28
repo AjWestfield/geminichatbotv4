@@ -1,0 +1,2 @@
+#!/bin/bash
+exec /Users/andersonwestfield/.nvm/versions/node/v18.20.5/bin/claude "$@"

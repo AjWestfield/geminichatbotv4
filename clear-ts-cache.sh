@@ -1,0 +1,35 @@
+#!/bin/bash
+
+echo "🧹 Clearing VS Code TypeScript Cache"
+echo "===================================="
+echo ""
+echo "The error is from a deleted file. Here's how to fix it:"
+echo ""
+echo "Option 1: Restart TypeScript Service (Quick)"
+echo "--------------------------------------------"
+echo "1. Open VS Code Command Palette: Cmd+Shift+P"
+echo "2. Type: 'TypeScript: Restart TS Server'"
+echo "3. Press Enter"
+echo ""
+echo "Option 2: Reload VS Code Window"
+echo "-------------------------------"
+echo "1. Open Command Palette: Cmd+Shift+P"
+echo "2. Type: 'Developer: Reload Window'"
+echo "3. Press Enter"
+echo ""
+echo "Option 3: Close and Reopen VS Code"
+echo "----------------------------------"
+echo "1. Close VS Code completely"
+echo "2. Open it again"
+echo ""
+echo "Option 4: Clear Next.js Cache (if above doesn't work)"
+echo "----------------------------------------------------"
+echo "Running this now..."
+echo ""
+
+# Clear Next.js cache
+rm -rf /Users/andersonwestfield/Desktop/geminichatbot/.next
+
+echo "✅ Next.js cache cleared!"
+echo ""
+echo "The error should now be gone. If not, try Option 1 or 2 above."

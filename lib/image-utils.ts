@@ -14,13 +14,16 @@ export interface GeneratedImage {
   model: string
   originalImageId?: string // For edited images, reference to the original
   editStrength?: number // Strength used for editing (0.0-1.0)
+  isGenerating?: boolean // Track if image is currently being generated
+  generationStartTime?: Date // When generation started
+  urlAvailableTime?: Date // When URL became available for reveal animation
 }
 
 /**
  * Generate a unique ID for an image
  */
 export function generateImageId(): string {
-  return `img_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  return `img_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
 }
 
 /**
@@ -82,18 +85,92 @@ export function getQualityBadgeColor(quality: string): string {
 }
 
 /**
- * Save generated images to localStorage
+ * Calculate approximate size of data in bytes
+ */
+function calculateDataSize(data: any): number {
+  return new Blob([JSON.stringify(data)]).size
+}
+
+/**
+ * Clear old images from storage to make room
+ */
+function clearOldImages(): void {
+  try {
+    // Clear all image-related storage
+    const keysToRemove = ['generatedImages', 'imageCache']
+    keysToRemove.forEach(key => {
+      try {
+        localStorage.removeItem(key)
+      } catch (e) {
+        console.error(`Failed to remove ${key}:`, e)
+      }
+    })
+    console.log('Cleared old image storage')
+  } catch (error) {
+    console.error('Failed to clear old images:', error)
+  }
+}
+
+/**
+ * Save generated images to localStorage with size management
  */
 export function saveGeneratedImages(images: GeneratedImage[]): void {
   try {
-    // Convert dates to strings for storage
-    const serialized = images.map(img => ({
-      ...img,
-      timestamp: img.timestamp.toISOString()
+    // Only save completed images (not generating ones)
+    const completedImages = images.filter(img => !img.isGenerating && img.url)
+    
+    if (completedImages.length === 0) {
+      return
+    }
+    
+    // Start with most recent 30 images
+    let imagesToSave = completedImages.slice(-30)
+    
+    // Convert dates to strings and minimize data
+    const prepareForStorage = (imgs: GeneratedImage[]) => imgs.map(img => ({
+      id: img.id,
+      url: img.url.substring(0, 200), // Limit URL length
+      prompt: img.prompt.substring(0, 200), // Limit prompt length
+      timestamp: img.timestamp.toISOString(),
+      quality: img.quality,
+      model: img.model,
+      // Don't save optional fields to save space
     }))
-    localStorage.setItem('generatedImages', JSON.stringify(serialized))
+    
+    let serialized = prepareForStorage(imagesToSave)
+    let dataSize = calculateDataSize(serialized)
+    
+    // If data is too large, reduce number of images
+    const maxSize = 4 * 1024 * 1024 // 4MB limit (conservative)
+    while (dataSize > maxSize && imagesToSave.length > 5) {
+      imagesToSave = imagesToSave.slice(-Math.floor(imagesToSave.length * 0.7))
+      serialized = prepareForStorage(imagesToSave)
+      dataSize = calculateDataSize(serialized)
+    }
+    
+    try {
+      localStorage.setItem('generatedImages', JSON.stringify(serialized))
+      console.log(`Saved ${imagesToSave.length} images (${(dataSize / 1024).toFixed(1)}KB)`)
+    } catch (quotaError: any) {
+      console.warn('localStorage quota exceeded, clearing old data...')
+      
+      // Clear old data and try again with only 10 most recent
+      clearOldImages()
+      
+      const minimalImages = completedImages.slice(-10)
+      const minimalSerialized = prepareForStorage(minimalImages)
+      
+      try {
+        localStorage.setItem('generatedImages', JSON.stringify(minimalSerialized))
+        console.log(`Saved ${minimalImages.length} most recent images after clearing storage`)
+      } catch (finalError) {
+        console.error('Failed to save even minimal images:', finalError)
+        // Don't throw - just log the error so the app continues working
+      }
+    }
   } catch (error) {
     console.error('Failed to save images:', error)
+    // Don't throw - gracefully handle the error
   }
 }
 
@@ -108,11 +185,28 @@ export function loadGeneratedImages(): GeneratedImage[] {
     // Parse and convert date strings back to Date objects
     const parsed = JSON.parse(stored)
     return parsed.map((img: any) => ({
-      ...img,
-      timestamp: new Date(img.timestamp)
+      id: img.id || generateImageId(),
+      url: img.url || '',
+      prompt: img.prompt || '',
+      revisedPrompt: img.revisedPrompt,
+      timestamp: new Date(img.timestamp || Date.now()),
+      quality: img.quality || 'standard',
+      style: img.style,
+      size: img.size,
+      model: img.model || 'unknown',
+      originalImageId: img.originalImageId,
+      editStrength: img.editStrength,
+      generationStartTime: img.generationStartTime ? new Date(img.generationStartTime) : undefined,
+      isGenerating: false // Loaded images are never generating
     }))
   } catch (error) {
     console.error('Failed to load images:', error)
+    // Clear corrupted data
+    try {
+      localStorage.removeItem('generatedImages')
+    } catch (e) {
+      console.error('Failed to clear corrupted storage:', e)
+    }
     return []
   }
 }
@@ -183,11 +277,38 @@ export function formatImageTimestamp(date: Date): string {
   
   if (days > 0) {
     return `${days} day${days > 1 ? 's' : ''} ago`
-  } else if (hours > 0) {
+  }
+  if (hours > 0) {
     return `${hours} hour${hours > 1 ? 's' : ''} ago`
-  } else if (minutes > 0) {
+  }
+  if (minutes > 0) {
     return `${minutes} minute${minutes > 1 ? 's' : ''} ago`
-  } else {
-    return 'Just now'
+  }
+  return 'Just now'
+}
+
+/**
+ * Clear all image storage
+ */
+export function clearImageStorage(): void {
+  try {
+    localStorage.removeItem('generatedImages')
+    console.log('Image storage cleared')
+  } catch (error) {
+    console.error('Failed to clear image storage:', error)
+  }
+}
+
+/**
+ * Get storage info
+ */
+export function getStorageInfo(): { used: number; images: number } {
+  try {
+    const stored = localStorage.getItem('generatedImages') || '[]'
+    const size = new Blob([stored]).size
+    const images = JSON.parse(stored).length
+    return { used: size, images }
+  } catch {
+    return { used: 0, images: 0 }
   }
 }

@@ -1,24 +1,24 @@
 /**
  * OpenAI GPT-Image-1 Client
  *
- * GPT-Image-1 is GPT-4o's native multimodal image generation capability
- * - Released: December 2024
- * - Architecture: Integrated within GPT-4o (not a separate model)
- * - API Format: multipart/form-data (despite research suggesting JSON)
- * - Requirements: Organization verification (government ID + facial verification)
- *
- * IMPORTANT: The OpenAI API endpoints require multipart/form-data for image operations,
- * regardless of the model being used (gpt-image-1, dall-e-2, dall-e-3, etc.)
+ * GPT-Image-1 is OpenAI's multimodal image generation model
+ * - Requires organization verification (government ID + facial verification)
+ * - Uses token-based pricing for text, image input, and image output
+ * - Supports generation, editing, and variations
+ * - Can process up to 10 input images
  *
  * Key Features:
+ * - High-fidelity image generation
  * - Image-to-image transformations
  * - Inpainting with alpha channel masks
- * - Multi-image composition (up to 10 images)
- * - Conversational editing with context awareness
+ * - Multi-image composition
  * - Accurate text rendering in images
+ * - Transparent background support
  *
- * Note: This implementation includes automatic fallback to dall-e-2/dall-e-3
- * if gpt-image-1 is not available for the account.
+ * IMPORTANT: GPT-Image-1 has specific parameter requirements:
+ * - quality: "low", "medium", "high" (NOT "standard" or "hd")
+ * - NO style parameter supported (unlike DALL-E models)
+ * - edit operations do NOT accept quality parameter
  */
 
 import OpenAI from 'openai';
@@ -80,14 +80,18 @@ export async function generateImageWithGPTImage1(
   options: {
     size?: '1024x1024' | '1536x1024' | '1024x1536';
     quality?: 'low' | 'medium' | 'high';
-    style?: 'vivid' | 'natural';
+    output_format?: 'png' | 'jpeg' | 'webp';
+    background?: 'transparent' | 'auto';
+    moderation?: 'low' | 'auto';
     n?: number;
   } = {}
 ) {
   const {
     size = '1024x1024',
     quality = 'medium',
-    style = 'natural',
+    output_format = 'png',
+    background = 'auto',
+    moderation = 'auto',
     n = 1,
   } = options;
 
@@ -102,24 +106,24 @@ export async function generateImageWithGPTImage1(
   });
 
   try {
-    console.log('Generating image with GPT-Image-1...');
-
-    // Map quality for the SDK (it uses 'standard' and 'hd')
-    const sdkQuality = quality === 'high' ? 'hd' : 'standard';
+    console.log('Generating image...');
+    console.log(`Quality: ${quality}, Size: ${size}, Format: ${output_format}`);
 
     const response = await openai.images.generate({
       model: 'gpt-image-1',
       prompt,
       n,
       size: size as any,
-      quality: sdkQuality as any,
-      style: style as any,
+      quality: quality as any,
+      output_format: output_format as any,
+      background: background as any,
+      moderation: moderation as any,
     });
 
     // Handle both URL and base64 responses
     let resultImageUrl = response.data[0]?.url;
     if (!resultImageUrl && response.data[0]?.b64_json) {
-      resultImageUrl = `data:image/png;base64,${response.data[0].b64_json}`;
+      resultImageUrl = `data:image/${output_format};base64,${response.data[0].b64_json}`;
     }
 
     return {
@@ -130,28 +134,49 @@ export async function generateImageWithGPTImage1(
     };
   } catch (error: any) {
     console.error('GPT-Image-1 generation error:', error);
+    console.error('Error details:', error.response?.data || error.message);
+    
+    // If GPT-Image-1 requires verification or is not available
+    if (error.message?.includes('invalid_model') || 
+        error.message?.includes('model_not_found') ||
+        error.message?.includes('verification required') ||
+        error.message?.includes('organization not verified')) {
+      
+      console.log('GPT-Image-1 not available, falling back to DALL-E-3...');
+      
+      // Fall back to DALL-E-3 (which supports style parameter)
+      try {
+        const dalle3Response = await openai.images.generate({
+          model: 'dall-e-3',
+          prompt,
+          n: 1, // DALL-E-3 only supports n=1
+          size: size as any,
+          quality: quality === 'high' ? 'hd' : 'standard', // Map quality
+          // Note: DALL-E-3 supports style but not background/moderation
+        });
 
-    // If gpt-image-1 is not available, fall back to dall-e-3
-    if (error.message?.includes('invalid_model') || error.message?.includes('model_not_found')) {
-      console.log('GPT-Image-1 not available, falling back to dall-e-3...');
+        return {
+          success: true,
+          imageUrl: dalle3Response.data[0]?.url || '',
+          revisedPrompt: dalle3Response.data[0]?.revised_prompt,
+          model: 'dall-e-3 (fallback)',
+        };
+      } catch (dalle3Error: any) {
+        console.error('DALL-E-3 fallback also failed:', dalle3Error.message);
+        // Try DALL-E-2 as last resort
+        const dalle2Response = await openai.images.generate({
+          model: 'dall-e-2',
+          prompt,
+          n,
+          size: size === '1536x1024' || size === '1024x1536' ? '1024x1024' : size as any,
+        });
 
-      const sdkQuality = quality === 'high' ? 'hd' : 'standard';
-
-      const fallbackResponse = await openai.images.generate({
-        model: 'dall-e-3',
-        prompt,
-        n,
-        size: size as any,
-        quality: sdkQuality as any,
-        style: style as any,
-      });
-
-      return {
-        success: true,
-        imageUrl: fallbackResponse.data[0]?.url || '',
-        revisedPrompt: fallbackResponse.data[0]?.revised_prompt,
-        model: 'dall-e-3 (fallback)',
-      };
+        return {
+          success: true,
+          imageUrl: dalle2Response.data[0]?.url || '',
+          model: 'dall-e-2 (fallback)',
+        };
+      }
     }
 
     throw error;
@@ -160,23 +185,21 @@ export async function generateImageWithGPTImage1(
 
 /**
  * Edit an existing image using GPT-Image-1's image-to-image capabilities
- * Uses multipart/form-data as required by the OpenAI API
+ * Note: GPT-Image-1 edit operations do NOT accept quality parameter
  */
 export async function editImageWithGPTImage1(
   imageUrl: string,
   prompt: string,
   options: {
     size?: '1024x1024' | '1536x1024' | '1024x1536';
-    quality?: 'low' | 'medium' | 'high';
-    style?: 'vivid' | 'natural';
     mask?: string; // Optional mask URL for inpainting
+    n?: number;
   } = {}
 ) {
   const {
     size = '1024x1024',
-    quality = 'medium',
-    style = 'natural',
     mask,
+    n = 1,
   } = options;
 
   const apiKey = process.env.OPENAI_API_KEY;
@@ -205,13 +228,14 @@ export async function editImageWithGPTImage1(
     // Convert buffer to File using OpenAI's toFile helper
     const imageFile = await toFile(imageBuffer, 'image.png', { type: 'image/png' });
 
-    // Prepare parameters for the SDK
+    // Prepare parameters for GPT-Image-1 edit
+    // Note: NO quality parameter for edit operations
     const editParams: any = {
-      model: 'gpt-image-1', // Using gpt-image-1 model
+      model: 'gpt-image-1',
       image: imageFile,
       prompt: prompt,
       size: size as any,
-      n: 1,
+      n: n,
     };
 
     // Add mask if provided for inpainting
@@ -248,6 +272,7 @@ export async function editImageWithGPTImage1(
     };
   } catch (error: any) {
     console.error('GPT-Image-1 edit error:', error);
+    console.error('Error details:', error.response?.data || error.message);
 
     // Check for moderation/safety system errors first
     if (error.message?.includes('safety system') || error.code === 'moderation_blocked' || error.type === 'image_generation_user_error') {
@@ -255,8 +280,10 @@ export async function editImageWithGPTImage1(
       throw error;
     }
 
-    // If the model is not found, it might be because gpt-image-1 requires special access
-    if (error.message?.includes('invalid_model') || error.message?.includes('model_not_found')) {
+    // If the model is not found or requires verification
+    if (error.message?.includes('invalid_model') || 
+        error.message?.includes('model_not_found') ||
+        error.message?.includes('verification required')) {
       // Try with dall-e-2 as fallback
       console.log('GPT-Image-1 not available, falling back to dall-e-2...');
 

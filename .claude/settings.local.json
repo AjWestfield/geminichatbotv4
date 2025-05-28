@@ -9,7 +9,18 @@
       "Bash(ls:*)",
       "Bash(npx tsc:*)",
       "Bash(cat:*)",
-      "WebFetch(domain:ai.google.dev)"
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(chmod:*)",
+      "Bash(npm run lint:*)",
+      "Bash(node:*)",
+      "Bash(rm:*)",
+      "Bash(echo:*)",
+      "Bash(grep:*)",
+      "Bash(./test-image-animation.sh:*)",
+      "Bash(pkill:*)",
+      "Bash(true)",
+      "Bash(npm i:*)",
+      "mcp__ide__getDiagnostics"
     ],
     "deny": []
   }
