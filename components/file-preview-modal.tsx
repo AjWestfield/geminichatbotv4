@@ -279,22 +279,79 @@ export function FilePreviewModal({ isOpen, onClose, file }: FilePreviewModalProp
                   <p className="text-sm text-gray-500 mt-1">The audio file URL is missing</p>
                 </div>
               )}              
-              {/* Transcription Section */}
+              {/* Transcription Section - Same as video */}
               {file.transcription && (
-                <div className="bg-black/10 rounded-lg">
-                  <div className="p-4 border-b border-gray-700">
-                    <h3 className="text-sm font-medium text-gray-300">
-                      Transcription
-                      {file.transcription.language && ` (${file.transcription.language})`}
-                      {file.transcription.duration && ` • ${formatDuration(file.transcription.duration)}`}
-                    </h3>
-                  </div>
-                  <div className="p-4 max-h-[400px] overflow-y-auto">
-                    <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
-                      {file.transcription.text}
-                    </p>
-                  </div>
-                </div>
+                <Tabs defaultValue="full" className="w-full">
+                  <TabsList className="bg-[#333333] w-full">
+                    <TabsTrigger value="full" className="flex-1 data-[state=active]:bg-[#4A4A4A]">
+                      Full Transcript
+                    </TabsTrigger>
+                    {file.transcription.segments && file.transcription.segments.length > 0 && (
+                      <TabsTrigger value="timed" className="flex-1 data-[state=active]:bg-[#4A4A4A]">
+                        Timed Segments
+                      </TabsTrigger>
+                    )}
+                  </TabsList>
+                  
+                  <TabsContent value="full" className="mt-4">
+                    <div className="bg-black/20 rounded-lg">
+                      <div className="p-4 border-b border-gray-700">
+                        <h3 className="text-sm font-medium text-gray-300">
+                          Full Transcription
+                          {file.transcription.language && ` (${file.transcription.language})`}
+                          {file.transcription.duration && ` • ${formatDuration(file.transcription.duration)}`}
+                        </h3>
+                      </div>
+                      <div className="p-4 max-h-[300px] overflow-y-auto">
+                        <p className="text-sm text-gray-200 whitespace-pre-wrap leading-relaxed">
+                          {file.transcription.text}
+                        </p>
+                      </div>
+                    </div>
+                  </TabsContent>
+                  
+                  {file.transcription.segments && file.transcription.segments.length > 0 && (
+                    <TabsContent value="timed" className="mt-4">
+                      <div className="bg-black/20 rounded-lg">
+                        <div className="p-4 border-b border-gray-700">
+                          <h3 className="text-sm font-medium text-gray-300">
+                            Timed Transcript Segments
+                            <span className="text-xs text-gray-500 ml-2">
+                              (Click timestamp to jump to that point)
+                            </span>
+                          </h3>
+                        </div>
+                        <div className="p-2 max-h-[300px] overflow-y-auto">
+                          {file.transcription.segments.map((segment, index) => (
+                            <div
+                              key={index}
+                              className={cn(
+                                "p-3 rounded-lg mb-2 cursor-pointer transition-all hover:bg-black/30",
+                                activeSegment === index && "bg-blue-900/30 border-l-2 border-blue-500"
+                              )}
+                              onClick={() => seekToSegment(segment.start)}
+                            >
+                              <div className="flex items-start gap-3">
+                                <button
+                                  className="text-xs text-blue-400 hover:text-blue-300 font-mono whitespace-nowrap pt-0.5"
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    seekToSegment(segment.start)
+                                  }}
+                                >
+                                  {formatDuration(segment.start)}
+                                </button>
+                                <p className="text-sm text-gray-200 flex-1">
+                                  {segment.text}
+                                </p>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </TabsContent>
+                  )}
+                </Tabs>
               )}
             </div>
           )}

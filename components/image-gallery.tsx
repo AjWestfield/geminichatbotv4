@@ -34,7 +34,7 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
   const [qualityFilter, setQualityFilter] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(false)
 
-  // Sync with prop changes - preserve local isGenerating state
+  // Sync with prop changes - properly handle isGenerating state transitions
   useEffect(() => {
     console.log('[ImageGallery] Syncing with prop changes, propImages:', 
       propImages.map(img => ({ id: img.id, isGenerating: img.isGenerating }))
@@ -48,14 +48,24 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
       
       console.log('[ImageGallery] Existing states:', Array.from(existingStates.entries()))
       
-      // Update with new images but preserve isGenerating state for existing ones
-      const updated = propImages.map(img => ({
-        ...img,
-        // If this image existed before and had isGenerating=false, keep it false
-        isGenerating: existingStates.has(img.id) 
-          ? (existingStates.get(img.id) ?? img.isGenerating)
-          : img.isGenerating
-      }))
+      // Update with new images, allowing isGenerating to transition from true to false
+      const updated = propImages.map(img => {
+        const wasGenerating = existingStates.get(img.id)
+        const isNowGenerating = img.isGenerating
+        
+        // Allow transition from generating (true) to complete (false)
+        // But preserve false state if it was already false
+        let finalGeneratingState = isNowGenerating
+        if (existingStates.has(img.id) && wasGenerating === false && isNowGenerating === true) {
+          // Don't allow going back from false to true (completed to generating)
+          finalGeneratingState = false
+        }
+        
+        return {
+          ...img,
+          isGenerating: finalGeneratingState
+        }
+      })
       
       console.log('[ImageGallery] Updated images after sync:', 
         updated.map(img => ({ id: img.id, isGenerating: img.isGenerating }))
@@ -362,17 +372,10 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
               </div>
 
               <div className="space-y-3">
-                <div className="max-w-4xl">
-                  <h4 className="text-sm font-medium text-gray-400 mb-1">Original Prompt</h4>
-                  <p className="text-white break-words whitespace-pre-wrap overflow-hidden">{selectedImage.prompt}</p>
+                <div className="w-full">
+                  <h4 className="text-sm font-medium text-gray-400 mb-1">Prompt</h4>
+                  <p className="text-white break-words whitespace-pre-wrap">{selectedImage.prompt}</p>
                 </div>
-
-                {selectedImage.revisedPrompt && selectedImage.revisedPrompt !== selectedImage.prompt && (
-                  <div className="max-w-4xl">
-                    <h4 className="text-sm font-medium text-gray-400 mb-1">Revised Prompt</h4>
-                    <p className="text-white break-words whitespace-pre-wrap overflow-hidden">{selectedImage.revisedPrompt}</p>
-                  </div>
-                )}
 
                 <div className="flex items-center justify-between pt-3 border-t border-[#333333]">
                   <div className="flex items-center gap-3 flex-wrap">

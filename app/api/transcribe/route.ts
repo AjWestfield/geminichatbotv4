@@ -4,6 +4,8 @@ import OpenAI from "openai"
 // Initialize OpenAI
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY || "",
+  timeout: 60000, // 60 second timeout
+  maxRetries: 2, // Retry up to 2 times on failure
 })
 
 export async function POST(req: NextRequest) {
@@ -106,6 +108,32 @@ export async function POST(req: NextRequest) {
             details: "Please upload a supported audio or video format (MP3, MP4, MOV, etc.)"
           },
           { status: 400 }
+        )
+      }
+      
+      // Check for connection errors
+      if (transcriptionError.code === 'ECONNRESET' || 
+          transcriptionError.code === 'ECONNREFUSED' ||
+          transcriptionError.message?.includes("Connection error") ||
+          transcriptionError.message?.includes("ECONNRESET")) {
+        return NextResponse.json(
+          { 
+            error: "Connection error",
+            details: "Failed to connect to OpenAI transcription service. This may be due to network issues or service unavailability. Please try again later."
+          },
+          { status: 503 }
+        )
+      }
+      
+      // Check for timeout errors
+      if (transcriptionError.code === 'ETIMEDOUT' || 
+          transcriptionError.message?.includes("timeout")) {
+        return NextResponse.json(
+          { 
+            error: "Request timeout",
+            details: "The transcription request timed out. This may happen with large files or slow connections. Please try again."
+          },
+          { status: 504 }
         )
       }
       

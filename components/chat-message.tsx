@@ -2,6 +2,9 @@ import { cn, formatDuration, getFileExtension, formatVideoDuration } from "@/lib
 import { FileAudio, Image as ImageIcon, Video } from "lucide-react"
 import { useState } from "react"
 import { FilePreviewModal } from "./file-preview-modal"
+import { MCPToolAnimation } from "./mcp-tool-animation"
+import { MCPToolResult } from "./mcp-tool-result"
+import { AnimatePresence } from "framer-motion"
 
 interface MessageAttachment {
   name: string
@@ -17,6 +20,18 @@ interface MessageAttachment {
   videoDuration?: number
 }
 
+interface MCPToolCall {
+  id: string
+  tool: string
+  server: string
+  status: 'executing' | 'completed' | 'failed'
+  result?: any
+  error?: string
+  isExpanded: boolean
+  timestamp: number
+  duration?: number
+}
+
 interface ChatMessageProps {
   message: {
     id: string
@@ -24,7 +39,14 @@ interface ChatMessageProps {
     content: string
     createdAt?: Date
     experimental_attachments?: MessageAttachment[]
+    toolCalls?: MCPToolCall[]
   }
+  mcpToolExecuting?: {
+    messageId: string
+    toolName: string
+    serverName: string
+    startTime: number
+  } | null
 }
 
 // Simple markdown parser for bold text and line breaks
@@ -50,10 +72,21 @@ function parseSimpleMarkdown(text: string) {
   })
 }
 
-export default function ChatMessage({ message }: ChatMessageProps) {
+export default function ChatMessage({ message, mcpToolExecuting }: ChatMessageProps) {
   const isUser = message.role === "user"
   const attachments = message.experimental_attachments
   const [selectedFile, setSelectedFile] = useState<MessageAttachment | null>(null)
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set())
+  
+  const toggleToolExpansion = (toolId: string) => {
+    const newExpanded = new Set(expandedTools)
+    if (newExpanded.has(toolId)) {
+      newExpanded.delete(toolId)
+    } else {
+      newExpanded.add(toolId)
+    }
+    setExpandedTools(newExpanded)
+  }
 
   return (
     <>
@@ -146,17 +179,58 @@ export default function ChatMessage({ message }: ChatMessageProps) {
               })}
             </div>
           )}
-        <div className="text-sm whitespace-pre-wrap">{parseSimpleMarkdown(message.content)}</div>
+          <div className="text-sm whitespace-pre-wrap">{message.content && message.content.trim() && parseSimpleMarkdown(message.content)}</div>
+        </div>
       </div>
-    </div>
-    
-    {selectedFile && (
-      <FilePreviewModal
-        isOpen={!!selectedFile}
-        onClose={() => setSelectedFile(null)}
-        file={selectedFile}
-      />
-    )}
-  </>
+      
+      {/* Render MCP tool calls below the message */}
+      {message.toolCalls && message.toolCalls.length > 0 && (
+        <div className={cn(
+          "mt-2 w-full overflow-hidden",
+          isUser ? "pr-4 max-w-[85%] ml-auto" : "pl-4 max-w-[85%]"
+        )}>
+          <AnimatePresence mode="wait">
+            {/* Show MCP tool animation for executing tools */}
+            {message.toolCalls
+              .filter(tc => tc.status === 'executing')
+              .map((toolCall) => (
+                <MCPToolAnimation
+                  key={toolCall.id}
+                  tool={toolCall.tool}
+                  server={toolCall.server}
+                />
+              ))
+            }
+            
+            {/* Show MCP tool results for completed tools */}
+            {message.toolCalls
+              .filter(tc => tc.status === 'completed' || tc.status === 'failed')
+              .map((toolCall) => (
+                <MCPToolResult
+                  key={toolCall.id}
+                  tool={toolCall.tool}
+                  server={toolCall.server}
+                  result={toolCall.result}
+                  status={toolCall.status}
+                  error={toolCall.error}
+                  isExpanded={expandedTools.has(toolCall.id)}
+                  onToggleExpand={() => toggleToolExpansion(toolCall.id)}
+                  timestamp={toolCall.timestamp}
+                  duration={toolCall.duration}
+                />
+              ))
+            }
+          </AnimatePresence>
+        </div>
+      )}
+      
+      {selectedFile && (
+        <FilePreviewModal
+          isOpen={!!selectedFile}
+          onClose={() => setSelectedFile(null)}
+          file={selectedFile}
+        />
+      )}
+    </>
   )
 }

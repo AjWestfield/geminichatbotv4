@@ -1,18 +1,27 @@
-# Gemini Chatbot v2 🚀
+# Gemini Chatbot v3 🚀
 
-A modern, feature-rich AI chatbot application powered by Google Gemini, with advanced image generation capabilities using GPT-Image-1 and WaveSpeed AI.
+A next-generation multimodal AI chatbot with advanced MCP (Model Context Protocol) integration, intelligent tool execution, and comprehensive media support powered by Google Gemini, GPT-Image-1, and WaveSpeed AI.
 
-![Gemini Chatbot v2](https://img.shields.io/badge/Next.js-15.2.4-black?style=for-the-badge&logo=next.js)
+![Gemini Chatbot v3](https://img.shields.io/badge/Next.js-15.2.4-black?style=for-the-badge&logo=next.js)
 ![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)
 ![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwind-css)
+![MCP Protocol](https://img.shields.io/badge/MCP-Protocol-green?style=for-the-badge)
 
 ## ✨ Features
 
 ### 🤖 AI Chat
 - **Multiple Gemini Models**: Gemini 2.5 Flash, Gemini Pro, Gemini 2.0 Flash
-- **Real-time Streaming**: Smooth, responsive chat experience
-- **File Attachments**: Support for images, PDFs, and documents
-- **Smart Context**: Maintains conversation history
+- **Real-time Streaming**: Smooth, responsive chat experience with tool execution
+- **File Attachments**: Support for images, PDFs, documents, audio, and video
+- **Smart Context**: Maintains conversation history with MCP tool awareness
+
+### 🔧 MCP (Model Context Protocol) Integration
+- **Extensible Tool System**: Connect any MCP-compatible server
+- **Intelligent Context**: AI automatically uses available tools
+- **Multiple Transports**: stdio and HTTP transport support
+- **Smart Discovery**: Natural language server addition with AI assistance
+- **GitHub Intelligence**: Automatic MCP configuration from GitHub repos
+- **Visual Feedback**: Tool execution animations and result displays
 
 ### 🎨 Image Generation
 - **Dual Model System**:
@@ -23,19 +32,23 @@ A modern, feature-rich AI chatbot application powered by Google Gemini, with adv
   - Gallery view with search and filtering
   - Download and management tools
   - Smart storage management
+  - Real-time generation progress
 
 ### 📱 Multimodal Support
 - **Image Analysis**: Upload and analyze images with AI
-- **Audio Transcription**: Automatic transcription via Whisper
-- **Video Analysis**: Full video analysis with transcription
+- **Audio Transcription**: Automatic transcription via Whisper with timestamps
+- **Video Analysis**: Full video analysis with transcription and thumbnails
 - **Document Processing**: PDF and document analysis
+- **Enhanced File Preview**: Modal with transcription tabs and segments
 
 ### 🎯 UI/UX Improvements
-- **Resizable Split View**: Adjustable panels for optimal workflow
+- **Three-Panel Layout**: MCP panel, chat interface, and canvas view
+- **Resizable Panels**: Adjustable panels for optimal workflow
 - **Dark Theme**: Modern, eye-friendly interface
 - **Toast Notifications**: Visual feedback for all actions
 - **Progress Tracking**: Real-time upload and generation progress
 - **Responsive Design**: Works seamlessly on all devices
+- **Professional Animations**: Smooth transitions and loading states
 
 ## 🚀 Getting Started
 
@@ -48,8 +61,8 @@ A modern, feature-rich AI chatbot application powered by Google Gemini, with adv
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/ajwestfield/geminichatbotv2.git
-cd geminichatbotv2
+git clone https://github.com/ajwestfield/geminichatbotv3.git
+cd geminichatbotv3
 ```
 
 2. Install dependencies:
@@ -100,9 +113,12 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
   - Google Gemini (2.5 Flash, Pro, 2.0 Flash)
   - OpenAI GPT-Image-1
   - WaveSpeed AI (Flux Dev)
+  - OpenAI Whisper (Audio transcription)
+- **Protocols**: MCP (Model Context Protocol)
 - **State Management**: React Hooks + Context
 - **Animation**: Framer Motion
 - **Storage**: LocalStorage with smart quota management
+- **Real-time**: Server-Sent Events for streaming
 
 ## 📊 Model Comparison
 
@@ -113,29 +129,40 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 | Text Rendering | Excellent | Good |
 | Best For | Professional work, text | Quick iterations |
 
-## 🔧 Key Improvements in v2
+## 🔧 Key Improvements in v3
+
+### MCP Integration
+- ✅ Full Model Context Protocol support
+- ✅ Intelligent tool discovery and execution
+- ✅ GitHub repository analysis for auto-configuration
+- ✅ Natural language server management
+- ✅ Visual tool execution feedback
 
 ### Performance
 - ✅ Optimized localStorage management (auto-cleanup, size limits)
 - ✅ Efficient image gallery with lazy loading
 - ✅ Smart caching strategies
+- ✅ Just-in-time MCP connections
 
 ### Reliability
-- ✅ Comprehensive error handling
+- ✅ Comprehensive error handling with user-friendly messages
 - ✅ Automatic fallback systems
 - ✅ Graceful degradation
+- ✅ Connection retry logic for all services
 
 ### User Experience
-- ✅ Simplified loading states
-- ✅ Clear visual feedback
-- ✅ Intuitive model selection
-- ✅ Storage management tools
+- ✅ Three-panel responsive layout
+- ✅ Enhanced file preview with transcription tabs
+- ✅ Professional animations and transitions
+- ✅ Toast notifications for all actions
+- ✅ Real-time progress indicators
 
 ### Code Quality
 - ✅ TypeScript throughout
 - ✅ Clean component architecture
 - ✅ Comprehensive error boundaries
 - ✅ Proper state management
+- ✅ Modular MCP system
 
 ## 📝 Usage Examples
 
@@ -159,6 +186,20 @@ Open [http://localhost:3000](http://localhost:3000) to see the app.
 "Abstract geometric pattern"
 ```
 
+### Use MCP Tools
+```
+"Use the weather tool to check the forecast for San Francisco"
+"Search the web for the latest AI news"
+"Calculate the compound interest on $10,000 at 5% for 10 years"
+```
+
+### Add MCP Servers
+```
+"Add the filesystem MCP server"
+"Add MCP server from https://github.com/owner/repo"
+"Connect to the sequential thinking server"
+```
+
 ## 🤝 Contributing
 
 Contributions are welcome! Please feel free to submit a Pull Request.
@@ -179,7 +220,7 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 Anderson Westfield - [@ajwestfield](https://github.com/ajwestfield)
 
-Project Link: [https://github.com/ajwestfield/geminichatbotv2](https://github.com/ajwestfield/geminichatbotv2)
+Project Link: [https://github.com/ajwestfield/geminichatbotv3](https://github.com/ajwestfield/geminichatbotv3)
 
 ---
 

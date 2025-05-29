@@ -13,6 +13,7 @@ export async function POST(req: NextRequest) {
     
     const { 
       prompt, 
+      originalPrompt, // The full original prompt from the user
       quality = "hd", // Default to "hd" which uses GPT-Image-1
       style = "vivid",
       size = "1024x1024",
@@ -79,7 +80,7 @@ export async function POST(req: NextRequest) {
             quality: "hd",
             style: style, // Keep for UI consistency even though GPT-Image-1 doesn't use it
             size: gptSize,
-            originalPrompt: prompt,
+            originalPrompt: originalPrompt || prompt,
             imageCount: 1,
           }
         })
@@ -110,11 +111,11 @@ export async function POST(req: NextRequest) {
 
         // Fall back to WaveSpeed on any GPT-Image-1 error
         console.log("Falling back to WaveSpeed due to GPT-Image-1 error:", error.message)
-        return generateWithWaveSpeed(prompt, { quality: "standard", style, size })
+        return generateWithWaveSpeed(prompt, originalPrompt || prompt, { quality: "standard", style, size })
       }
     } else {
       // Use WaveSpeed for standard quality
-      return generateWithWaveSpeed(prompt, { quality, style, size })
+      return generateWithWaveSpeed(prompt, originalPrompt || prompt, { quality, style, size })
     }
 
   } catch (error: any) {
@@ -132,6 +133,7 @@ export async function POST(req: NextRequest) {
 // Helper function to generate with WaveSpeed
 async function generateWithWaveSpeed(
   prompt: string,
+  originalPrompt: string,
   options: {
     quality: string,
     style: string,
@@ -176,7 +178,7 @@ async function generateWithWaveSpeed(
         quality: options.quality,
         style: options.style,
         size: options.size,
-        originalPrompt: prompt,
+        originalPrompt: originalPrompt,
         imageCount: 1,
       }
     })

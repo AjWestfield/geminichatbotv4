@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-import { useChat } from "ai/react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import ChatMessage from "./chat-message"
 import { AI_Prompt } from "@/components/ui/animated-ai-input"
@@ -18,9 +17,11 @@ import {
   loadGeneratedImages,
   saveGeneratedImages 
 } from "@/lib/image-utils"
-import { ImageGenerationSettings } from "./image-generation-settings"
+import { SettingsDialog } from "./settings-dialog"
 import { Button } from "@/components/ui/button"
 import { Settings } from "lucide-react"
+import { useChatWithTools } from "@/hooks/use-chat-with-tools"
+import { toast } from "sonner"
 
 interface FileUpload {
   file: File
@@ -58,6 +59,8 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
   const [uploadStatus, setUploadStatus] = useState<'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'>('idle')
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
+  
+  // MCP tool execution state is now managed by useChatWithTools hook
   
   // Image generation settings
   const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>(() => {
@@ -117,6 +120,12 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
       setGeneratedImages(savedImages)
       onGeneratedImagesChange?.(savedImages)
     }
+    
+    // Initialize MCP servers
+    fetch('/api/mcp/init')
+      .then(res => res.json())
+      .then(data => console.log('MCP initialized:', data))
+      .catch(err => console.error('Failed to initialize MCP:', err))
   }, [onGeneratedImagesChange])
 
   // Store file attachments for each message
@@ -157,7 +166,7 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
     videoDuration?: number // Add this
   } | null>(null)
 
-  const { messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, error, stop } = useChat({
+  const { messages, input, handleInputChange, handleSubmit: originalHandleSubmit, isLoading, error, stop, mcpToolExecuting } = useChatWithTools({
     api: "/api/chat",
     body: {
       model: selectedModel,
@@ -324,14 +333,40 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
           } else {
             const errorData = await transcribeResponse.json()
             console.error('Transcription failed:', errorData)
-            // Show user-friendly error but continue
-            if (errorData.details?.includes("25MB")) {
-              console.warn('File too large for transcription')
-              // You might want to show a toast notification here
+            
+            // Show user-friendly error message
+            const errorMessage = errorData.error || 'Transcription failed'
+            const errorDetails = errorData.details || 'Unknown error'
+            
+            if (errorDetails.includes("Connection error")) {
+              toast.error("Connection Error", {
+                description: "Unable to connect to transcription service. Please check your internet connection and try again."
+              })
+            } else if (errorDetails.includes("25MB")) {
+              toast.error("File Too Large", {
+                description: `Maximum file size for transcription is 25MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB.`
+              })
+            } else if (errorDetails.includes("Invalid OpenAI API key")) {
+              toast.error("API Key Error", {
+                description: "OpenAI API key is missing or invalid. Please check your configuration."
+              })
+            } else {
+              toast.error(errorMessage, {
+                description: errorDetails
+              })
             }
+            
+            // Continue without transcription
+            console.warn('Continuing without transcription due to error')
           }
-        } catch (transcribeError) {
+        } catch (transcribeError: any) {
           console.error("Transcription error:", transcribeError)
+          
+          // Show error to user
+          toast.error("Transcription Error", {
+            description: transcribeError.message || "Failed to transcribe audio. The file will be uploaded without transcription."
+          })
+          
           // Continue without transcription
         }
       }
@@ -352,9 +387,15 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
         setUploadProgress(0)
       }, 2000)
       
-    } catch (error) {
+    } catch (error: any) {
       console.error("File upload error:", error)
       setUploadStatus('error')
+      
+      // Show error to user
+      toast.error("File Upload Failed", {
+        description: error.message || "An error occurred while uploading the file. Please try again."
+      })
+      
       setTimeout(() => {
         setUploadStatus('idle')
         setUploadProgress(0)
@@ -656,7 +697,7 @@ You can view it in the **Images** tab on the right.`,
             size="sm"
             onClick={() => setShowImageSettings(true)}
             className="text-gray-400 hover:text-white"
-            title="Image Generation Settings"
+            title="Settings"
           >
             <Settings className="w-4 h-4" />
           </Button>
@@ -681,8 +722,10 @@ You can view it in the **Images** tab on the right.`,
                   role: message.role,
                   content: message.content,
                   createdAt: message.createdAt,
-                  experimental_attachments: attachments
-                }} 
+                  experimental_attachments: attachments,
+                  toolCalls: message.toolCalls
+                }}
+                mcpToolExecuting={mcpToolExecuting}
               />
             );
           })}
@@ -766,15 +809,15 @@ You can view it in the **Images** tab on the right.`,
         </div>
       )}
       
-      <ImageGenerationSettings
+      <SettingsDialog
         open={showImageSettings}
         onOpenChange={handleSettingsClose}
-        quality={imageQuality}
-        onQualityChange={updateImageQuality}
-        style={imageStyle}
-        onStyleChange={setImageStyle}
-        size={imageSize}
-        onSizeChange={setImageSize}
+        imageQuality={imageQuality}
+        onImageQualityChange={updateImageQuality}
+        imageStyle={imageStyle}
+        onImageStyleChange={setImageStyle}
+        imageSize={imageSize}
+        onImageSizeChange={setImageSize}
       />
     </div>
   )
