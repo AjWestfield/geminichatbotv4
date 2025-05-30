@@ -179,7 +179,17 @@ export default function ChatMessage({ message, mcpToolExecuting }: ChatMessagePr
               })}
             </div>
           )}
-          <div className="text-sm whitespace-pre-wrap">{message.content && message.content.trim() && parseSimpleMarkdown(message.content)}</div>
+          <div className="text-sm whitespace-pre-wrap">
+            {message.content && message.content.trim() && (() => {
+              // Filter out internal API key protocol messages
+              const content = message.content
+                .replace(/REQUEST_API_KEY:\{[^}]+\}/g, '')
+                .replace(/API_KEY_PROVIDED:\{[^}]+\}/g, '')
+                .trim()
+              
+              return content && parseSimpleMarkdown(content)
+            })()}
+          </div>
         </div>
       </div>
       

@@ -100,14 +100,26 @@ export class MCPServerIntelligence {
     },
     'sequential-thinking': {
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
-      description: 'Sequential thinking and reasoning server',
+      args: ['-y', '@modelcontextprotocol/server-sequentialthinking'],
+      description: 'Sequential thinking and reasoning (plan, execute, reflect)',
       transportType: 'stdio'
     },
     'sequentialthinking': {
       command: 'npx',
-      args: ['-y', '@modelcontextprotocol/server-sequential-thinking'],
-      description: 'Sequential thinking and reasoning server',
+      args: ['-y', '@modelcontextprotocol/server-sequentialthinking'],
+      description: 'Sequential thinking and reasoning (plan, execute, reflect)',
+      transportType: 'stdio'
+    },
+    'desktop-commander': {
+      command: 'npx',
+      args: ['-y', '@wonderwhy-er/desktop-commander@latest'],
+      description: 'AI-powered system control (terminal, file operations, process management)',
+      transportType: 'stdio'
+    },
+    'desktopcommander': {
+      command: 'npx',
+      args: ['-y', '@wonderwhy-er/desktop-commander@latest'],
+      description: 'AI-powered system control (terminal, file operations, process management)',
       transportType: 'stdio'
     }
   }

@@ -9,6 +9,7 @@ import { cn, formatFileSize, formatDuration, formatVideoDuration } from "@/lib/u
 import { Button } from "@/components/ui/button"
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { AnimatePresence, motion } from "framer-motion"
+import { MCPToolsPopup } from "@/components/mcp/mcp-tools-popup"
 
 interface UseAutoResizeTextareaProps {
   minHeight: number
@@ -94,6 +95,8 @@ interface AIPromptProps {
   } | null
   onFileRemove?: () => void
   onGenerateImage?: () => void // Add this for quick image generation
+  onToolToggle?: (serverId: string, toolName: string, enabled: boolean) => void
+  onServerToggle?: (serverId: string, enabled: boolean) => void
 }
 
 export function AI_Prompt({
@@ -107,13 +110,15 @@ export function AI_Prompt({
   onFileSelect,
   selectedFile,
   onFileRemove,
+  onToolToggle,
+  onServerToggle,
 }: AIPromptProps) {
   const { textareaRef, adjustHeight } = useAutoResizeTextarea({
     minHeight: 80,
     maxHeight: 300,
   })
 
-  const AI_MODELS = ["gemini-2.5-pro-preview-05-06", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash-exp"]
+  const AI_MODELS = ["gemini-2.5-pro-preview-05-06", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash-exp", "Claude Sonnet 4"]
 
   const MODEL_ICONS: Record<string, React.ReactNode> = {
     "Claude Opus 4": (
@@ -394,6 +399,10 @@ export function AI_Prompt({
                     />
                     <Paperclip className="w-4 h-4 transition-colors" />
                   </label>
+                  <MCPToolsPopup 
+                    onToolToggle={onToolToggle}
+                    onServerToggle={onServerToggle}
+                  />
                 </div>
                 <button
                   type="button"

@@ -1,30 +1,55 @@
 #!/bin/bash
 
-echo "Testing React Infinite Loop Fix"
-echo "==============================="
+echo "Testing Infinite Update Loop Fix"
+echo "================================"
 echo ""
-echo "This script verifies that the React infinite loop error is fixed."
+
+# Kill any existing processes on port 3000
+echo "1. Stopping existing dev server..."
+lsof -ti:3000 | xargs kill -9 2>/dev/null || true
+sleep 2
+
+# Clear Next.js cache
+echo "2. Clearing Next.js cache..."
+rm -rf .next
+
+# Start the dev server
+echo "3. Starting development server..."
+cd /Users/andersonwestfield/Desktop/geminichatbotv3
+npm run dev &
+DEV_PID=$!
+
+# Wait for server to start
+echo "4. Waiting for server to start..."
+sleep 8
+
+# Open the browser
+echo "5. Opening browser at http://localhost:3000"
+open http://localhost:3000
+
 echo ""
-echo "What was fixed:"
-echo "- Removed circular dependency in useEffect hook"
-echo "- Added proper state update checks to prevent unnecessary re-renders"
-echo "- Memoized message processing for better performance"
+echo "Test Instructions:"
+echo "=================="
 echo ""
-echo "Test Steps:"
-echo "1. Start dev server: npm run dev"
-echo "2. Open http://localhost:3003 (or appropriate port)"
-echo "3. Ask a question that triggers tools: 'What is the latest AI news?'"
+echo "1. CHECK CONSOLE:"
+echo "   - Open browser console (Cmd+Option+J)"
+echo "   - Verify NO 'Maximum update depth exceeded' errors"
+echo "   - Check terminal for clean server logs"
 echo ""
-echo "Expected Results:"
-echo "✓ No 'Maximum update depth exceeded' error"
-echo "✓ Tools execute normally"
-echo "✓ UI remains responsive"
-echo "✓ Tool status updates correctly"
+echo "2. TEST MCP FUNCTIONALITY:"
+echo "   - Click the tools icon in chat input"
+echo "   - Verify popup opens without errors"
+echo "   - Toggle servers on/off"
+echo "   - Click 'Manage Servers'"
+echo "   - Verify settings dialog opens"
 echo ""
-echo "Files Modified:"
-echo "- hooks/use-chat-with-tools.ts"
-echo "  - Fixed useEffect dependencies"
-echo "  - Added memoization with useMemo"
-echo "  - Optimized state updates"
+echo "3. EXPECTED RESULTS:"
+echo "   ✅ No infinite loop errors"
+echo "   ✅ App loads successfully"
+echo "   ✅ MCP servers connect normally"
+echo "   ✅ UI interactions work smoothly"
 echo ""
-echo "Run 'npm run dev' to start testing!"
+echo "Press Ctrl+C to stop the server when done testing."
+
+# Wait for user to stop
+wait $DEV_PID

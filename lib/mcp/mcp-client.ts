@@ -30,15 +30,22 @@ export class MCPClientWrapper {
   private client: Client | null = null;
   private transport: Transport | null = null;
   private connected: boolean = false;
+  private connectionPromise: Promise<void> | null = null;
+  private connectionMonitorInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private config: MCPServerConfig
   ) {}
 
   async connect(): Promise<void> {
-    if (this.connected) {
+    if (this.connected && this.isClientAlive()) {
       console.log('Already connected to MCP server:', this.config.name);
       return;
+    }
+
+    // If already connecting, wait for that to complete
+    if (this.connectionPromise) {
+      return this.connectionPromise;
     }
 
     try {
@@ -100,7 +107,8 @@ export class MCPClientWrapper {
         
         // Set up stderr monitoring if available for stdio transport
         if ('stderr' in this.transport && this.transport.stderr) {
-          this.transport.stderr.on('data', (data: Buffer) => {
+          const stderr = this.transport.stderr as NodeJS.ReadableStream;
+          stderr.on('data', (data: Buffer) => {
             const stderrText = data.toString();
             console.error(`MCP server stderr (${this.config.name}):`, stderrText);
             
@@ -130,12 +138,18 @@ export class MCPClientWrapper {
 
       try {
         console.log('Connecting client to transport...');
-        await this.client.connect(this.transport);
+        this.connectionPromise = this.client.connect(this.transport);
+        await this.connectionPromise;
         clearTimeout(connectTimeout);
         this.connected = true;
+        this.connectionPromise = null;
         console.log('Connected to MCP server:', this.config.name);
+        
+        // Start connection monitoring
+        this.startConnectionMonitor();
       } catch (connectError) {
         clearTimeout(connectTimeout);
+        this.connectionPromise = null;
         console.error('Failed to connect MCP client:', connectError);
         throw connectError;
       }
@@ -148,6 +162,13 @@ export class MCPClientWrapper {
 
   async disconnect(): Promise<void> {
     this.connected = false;
+    this.connectionPromise = null;
+    
+    // Stop connection monitoring
+    if (this.connectionMonitorInterval) {
+      clearInterval(this.connectionMonitorInterval);
+      this.connectionMonitorInterval = null;
+    }
     
     if (this.client) {
       try {
@@ -247,10 +268,43 @@ export class MCPClientWrapper {
   }
 
   isConnected(): boolean {
-    return this.connected;
+    return this.connected && this.isClientAlive();
   }
 
   getConfig(): MCPServerConfig {
     return this.config;
+  }
+
+  private isClientAlive(): boolean {
+    if (!this.client || !this.transport) {
+      return false;
+    }
+    
+    // Check if transport is still open
+    if ('closed' in this.transport && this.transport.closed) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  private startConnectionMonitor(): void {
+    // Clear any existing monitor
+    if (this.connectionMonitorInterval) {
+      clearInterval(this.connectionMonitorInterval);
+    }
+    
+    // Monitor connection every 5 seconds
+    this.connectionMonitorInterval = setInterval(() => {
+      if (this.connected && !this.isClientAlive()) {
+        console.warn(`[MCPClient] Connection lost for server: ${this.config.name}`);
+        this.connected = false;
+        
+        // Clean up dead connection
+        this.disconnect().catch(error => {
+          console.error('Error during connection cleanup:', error);
+        });
+      }
+    }, 5000);
   }
 }

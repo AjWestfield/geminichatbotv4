@@ -63,24 +63,42 @@ export class MCPServerManager {
     }
   }
 
-  async connectServer(serverId: string): Promise<void> {
+  async connectServer(serverId: string, retryCount: number = 0): Promise<void> {
     const instance = this.servers.get(serverId);
     if (!instance) {
       throw new Error(`Server ${serverId} not found`);
     }
 
     instance.status = 'connecting';
-    console.log(`[MCPServerManager] Connecting to server: ${serverId} (${instance.config.name})`);
+    console.log(`[MCPServerManager] Connecting to server: ${serverId} (${instance.config.name}) - Attempt ${retryCount + 1}`);
     
     try {
       await instance.client.connect();
+      
+      // Verify connection is still alive before proceeding
+      if (!instance.client.isConnected()) {
+        throw new Error('Connection dropped immediately after connecting');
+      }
+      
       instance.status = 'connected';
       console.log(`[MCPServerManager] Connected to server: ${serverId}`);
       
-      // Fetch available tools and resources
+      // Add small delay for DesktopCommander to stabilize
+      if (instance.config.name === 'DesktopCommander') {
+        console.log('[MCPServerManager] Waiting for DesktopCommander to stabilize...');
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
+      // Fetch available tools and resources with timeout
       try {
+        const capabilitiesTimeout = setTimeout(() => {
+          throw new Error('Timeout fetching server capabilities');
+        }, 10000);
+        
         console.log(`[MCPServerManager] Fetching tools for server: ${serverId}`);
         instance.tools = await instance.client.listTools();
+        clearTimeout(capabilitiesTimeout);
+        
         console.log(`[MCPServerManager] Found ${instance.tools?.length || 0} tools for server: ${serverId}`);
         if (instance.tools && instance.tools.length > 0) {
           console.log(`[MCPServerManager] Tools:`, instance.tools.map(t => t.name));
@@ -91,6 +109,15 @@ export class MCPServerManager {
         console.log(`[MCPServerManager] Found ${instance.resources?.length || 0} resources for server: ${serverId}`);
       } catch (error) {
         console.error('[MCPServerManager] Error fetching server capabilities:', error);
+        
+        // If connection dropped, retry
+        if (!instance.client.isConnected() && retryCount < 2) {
+          console.log('[MCPServerManager] Connection lost, retrying...');
+          await instance.client.disconnect();
+          await new Promise(resolve => setTimeout(resolve, 2000));
+          return this.connectServer(serverId, retryCount + 1);
+        }
+        
         // Don't throw here - server is connected even if capabilities fetch fails
         instance.tools = [];
         instance.resources = [];
@@ -101,6 +128,23 @@ export class MCPServerManager {
       instance.status = 'error';
       instance.lastError = error instanceof Error ? error.message : 'Unknown error';
       console.error(`[MCPServerManager] Failed to connect to server ${serverId}:`, error);
+      
+      // Retry for certain errors
+      if (retryCount < 2) {
+        const errorMessage = error instanceof Error ? error.message : '';
+        const shouldRetry = errorMessage.includes('Connection closed') ||
+                           errorMessage.includes('Connection dropped') ||
+                           errorMessage.includes('ENOTEMPTY') ||
+                           errorMessage.includes('spawn');
+        
+        if (shouldRetry) {
+          console.log(`[MCPServerManager] Retrying connection in 3 seconds...`);
+          await instance.client.disconnect();
+          await new Promise(resolve => setTimeout(resolve, 3000));
+          return this.connectServer(serverId, retryCount + 1);
+        }
+      }
+      
       throw error;
     }
   }

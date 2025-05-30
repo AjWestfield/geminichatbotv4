@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
@@ -17,6 +17,8 @@ import { Badge } from '@/components/ui/badge'
 import { Input } from '@/components/ui/input'
 import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
+import { useMCPState } from '@/hooks/use-mcp-state'
+import { Switch } from '@/components/ui/switch'
 
 interface SettingsDialogProps {
   open: boolean
@@ -28,6 +30,8 @@ interface SettingsDialogProps {
   onImageStyleChange: (style: 'vivid' | 'natural') => void
   imageSize: '1024x1024' | '1792x1024' | '1024x1792'
   onImageSizeChange: (size: '1024x1024' | '1792x1024' | '1024x1792') => void
+  // Optional initial tab
+  initialTab?: 'image' | 'mcp'
 }
 
 export function SettingsDialog({
@@ -39,10 +43,11 @@ export function SettingsDialog({
   onImageStyleChange,
   imageSize,
   onImageSizeChange,
+  initialTab,
 }: SettingsDialogProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [activeTab, setActiveTab] = useState('image')
+  const [activeTab, setActiveTab] = useState(initialTab || 'image')
   const [jsonInput, setJsonInput] = useState('')
   const [parseError, setParseError] = useState<string | null>(null)
   const [isImporting, setIsImporting] = useState(false)
@@ -62,6 +67,27 @@ export function SettingsDialog({
     disconnectServer,
     getServerTools,
   } = useMCPServers()
+  
+  const mcpState = useMCPState()
+
+  // Update active tab when dialog opens with a specific tab
+  useEffect(() => {
+    if (open && initialTab) {
+      setActiveTab(initialTab)
+    }
+  }, [open, initialTab])
+  
+  // Auto-connect servers when enabled by default
+  useEffect(() => {
+    if (mcpState.autoConnectByDefault) {
+      servers.forEach(server => {
+        const serverState = mcpState.servers[server.id]
+        if (serverState?.enabled && server.status === 'disconnected') {
+          connectServer(server.id).catch(console.error)
+        }
+      })
+    }
+  }, [servers, mcpState.autoConnectByDefault, mcpState.servers, connectServer])
 
   const handleImageQualityChange = (newQuality: 'standard' | 'hd') => {
     onImageQualityChange(newQuality)
@@ -140,10 +166,17 @@ export function SettingsDialog({
           console.log('[Settings] Adding server with ID:', serverWithId)
           const addedServer = await addServer(serverWithId)
           
-          // Auto-connect the server after adding if it has an ID
+          // Initialize and auto-connect the server after adding if it has an ID
           if (addedServer?.id) {
-            console.log('[Settings] Connecting to server:', addedServer.id)
-            await connectServer(addedServer.id)
+            // Initialize server in global state
+            mcpState.initializeServer(addedServer.id, server.name)
+            mcpState.setServerEnabled(addedServer.id, true)
+            
+            // Auto-connect if enabled
+            if (mcpState.autoConnectByDefault) {
+              console.log('[Settings] Connecting to server:', addedServer.id)
+              await connectServer(addedServer.id)
+            }
           }
           successCount++
         } catch (error) {
@@ -233,7 +266,18 @@ export function SettingsDialog({
         env: Object.keys(env).length > 0 ? env : undefined,
       }
 
-      await addServer(config)
+      const addedServer = await addServer(config)
+      
+      // Initialize and enable in global state
+      if (config.id) {
+        mcpState.initializeServer(config.id, config.name)
+        mcpState.setServerEnabled(config.id, true)
+        
+        // Auto-connect if enabled
+        if (mcpState.autoConnectByDefault) {
+          await connectServer(config.id)
+        }
+      }
       
       // Reset form
       setManualServerForm({
@@ -245,7 +289,7 @@ export function SettingsDialog({
       
       toast({
         title: "Server added",
-        description: `${config.name} has been added successfully`,
+        description: `${config.name} has been added successfully${mcpState.autoConnectByDefault ? ' and connecting...' : ''}`,
       })
     } catch (error) {
       toast({
@@ -354,6 +398,26 @@ export function SettingsDialog({
             </TabsContent>
             
             <TabsContent value="mcp" className="space-y-4">
+              {/* Default Settings */}
+              <div className="space-y-4 pb-4 border-b border-[#3A3A3A]">
+                <h3 className="text-sm font-medium">Default Settings</h3>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label htmlFor="auto-connect" className="text-sm font-medium cursor-pointer">
+                      Auto-connect servers by default
+                    </Label>
+                    <p className="text-xs text-gray-400">
+                      Automatically connect to servers when they are enabled
+                    </p>
+                  </div>
+                  <Switch
+                    id="auto-connect"
+                    checked={mcpState.autoConnectByDefault}
+                    onCheckedChange={mcpState.setAutoConnectByDefault}
+                  />
+                </div>
+              </div>
+              
               {/* Import Section */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium">Import MCP Configuration</h3>
@@ -481,6 +545,8 @@ Supports all standard MCP configuration formats!`}
                       const isConnecting = server.status === 'connecting'
                       const isConnected = server.status === 'connected'
                       const hasError = server.status === 'error'
+                      const serverState = mcpState.servers[server.id]
+                      const isEnabled = serverState?.enabled ?? mcpState.autoConnectByDefault
                       
                       return (
                         <Collapsible key={server.id}>
@@ -498,13 +564,16 @@ Supports all standard MCP configuration formats!`}
                                     <Server className="w-4 h-4 text-gray-400" />
                                   )}
                                   <span className="font-medium">{server.name}</span>
-                                  {isConnected && (
+                                  {!isEnabled && (
+                                    <Badge variant="outline" className="text-xs">Disabled</Badge>
+                                  )}
+                                  {isEnabled && isConnected && (
                                     <Badge variant="default" className="text-xs bg-green-600">Connected</Badge>
                                   )}
-                                  {isConnecting && (
+                                  {isEnabled && isConnecting && (
                                     <Badge variant="secondary" className="text-xs">Connecting...</Badge>
                                   )}
-                                  {hasError && (
+                                  {isEnabled && hasError && (
                                     <Badge variant="destructive" className="text-xs">Error</Badge>
                                   )}
                                   {isConnected && tools.length > 0 && (
@@ -516,27 +585,43 @@ Supports all standard MCP configuration formats!`}
                                     </CollapsibleTrigger>
                                   )}
                                 </div>
-                                <div className="flex gap-1">
-                                  {server.status === 'disconnected' || hasError ? (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => connectServer(server.id)}
-                                      className="h-7 w-7"
-                                      disabled={isConnecting}
-                                    >
-                                      <Play className="w-3 h-3" />
-                                    </Button>
-                                  ) : (
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => disconnectServer(server.id)}
-                                      className="h-7 w-7"
-                                      disabled={isConnecting}
-                                    >
-                                      <Square className="w-3 h-3" />
-                                    </Button>
+                                <div className="flex gap-1 items-center">
+                                  <Switch
+                                    checked={isEnabled}
+                                    onCheckedChange={async (checked) => {
+                                      mcpState.setServerEnabled(server.id, checked)
+                                      if (checked && server.status === 'disconnected') {
+                                        await connectServer(server.id)
+                                      } else if (!checked && server.status === 'connected') {
+                                        await disconnectServer(server.id)
+                                      }
+                                    }}
+                                    className="mr-2"
+                                  />
+                                  {isEnabled && (
+                                    <>
+                                      {server.status === 'disconnected' || hasError ? (
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => connectServer(server.id)}
+                                          className="h-7 w-7"
+                                          disabled={isConnecting}
+                                        >
+                                          <Play className="w-3 h-3" />
+                                        </Button>
+                                      ) : (
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => disconnectServer(server.id)}
+                                          className="h-7 w-7"
+                                          disabled={isConnecting}
+                                        >
+                                          <Square className="w-3 h-3" />
+                                        </Button>
+                                      )}
+                                    </>
                                   )}
                                   <Button
                                     size="icon"

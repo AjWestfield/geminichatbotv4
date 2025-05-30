@@ -4,6 +4,9 @@ import { MCPServerIntelligence } from "@/lib/mcp/mcp-server-intelligence"
 import { MCPServerManager } from "@/lib/mcp/mcp-server-manager"
 import { MCPConfigManager } from "@/lib/mcp/mcp-config-manager"
 import { MCPGitHubPrompts } from "@/lib/mcp/mcp-github-prompts"
+import { MCP_AGENT_INSTRUCTIONS, MCP_SYSTEM_PROMPT } from "@/lib/mcp/mcp-agent-instructions"
+import { MCP_AGENT_INSTRUCTIONS_ENHANCED, MCP_SYSTEM_PROMPT_ENHANCED } from "@/lib/mcp/mcp-agent-instructions-enhanced"
+import { getClaudeClient, formatMessagesForClaude, convertMCPToolsToClaudeTools, parseClaudeToolCalls, formatToolResultsForClaude } from "@/lib/claude-client"
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
@@ -19,8 +22,18 @@ export async function POST(req: Request) {
       return new Response("Invalid messages format", { status: 400 })
     }
 
+    // Check if it's a Claude model
+    if (model === "Claude Sonnet 4") {
+      // Import Claude handler dynamically to avoid circular dependencies
+      const { handleClaudeRequest } = await import('./claude-handler');
+      return handleClaudeRequest(messages, model);
+    }
+
     // Get the generative model with appropriate settings
-    const modelConfig: any = { model }
+    const modelConfig: any = { 
+      model,
+      systemInstruction: `${MCP_SYSTEM_PROMPT_ENHANCED}`
+    }
     
     // Add specific configurations for video-capable models
     if (model === "gemini-2.0-flash-exp" && fileMimeType?.startsWith("video/")) {
@@ -127,6 +140,12 @@ Analyze the ENTIRE video duration, not just the beginning.`
     
     // Add text message
     let finalMessageContent = messageContent
+    
+    // Check if this is an API key response
+    if (messageContent.includes('API_KEY_PROVIDED:')) {
+      console.log('[Chat API] Detected API key response')
+      // The agent will handle this internally, just pass it through
+    }
     
     // Check if this is an MCP server management request
     const mcpServerPatterns = [
@@ -389,11 +408,7 @@ When you receive search results about the GitHub repository, analyze them to fin
 3. Any required configuration or environment variables
 4. Whether it uses stdio (default) or http transport
 
-After analyzing the results, use this API to configure the server:
-POST /api/mcp/github-analyze
-Body: { "githubUrl": "${githubUrlMatch[0]}", "searchResults": <results> }
-
-This will automatically extract and add the MCP server configuration.`
+After receiving the search results, I will automatically analyze them and configure the server for you.`
       
       finalMessageContent = githubPrompt + '\n\n' + finalMessageContent
     }
@@ -521,8 +536,52 @@ ${toolResult}
                     // Small delay to ensure tool results are processed
                     await new Promise(resolve => setTimeout(resolve, 500));
                     
+                    // Check if this is a web search for GitHub MCP server
+                    let autoConfigured = false
+                    if (toolCall.tool === 'web_search_exa' && isMCPServerRequest && githubUrlMatch) {
+                      try {
+                        // Parse search results from tool result
+                        const searchResults = []
+                        const resultsMatch = toolResult.match(/\[[\s\S]*\]/);
+                        if (resultsMatch) {
+                          const parsed = JSON.parse(resultsMatch[0])
+                          searchResults.push(...parsed)
+                        }
+                        
+                        if (searchResults.length > 0) {
+                          // Call the github-analyze API internally
+                          const analyzeResponse = await fetch(`${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/api/mcp/github-analyze`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                              githubUrl: githubUrlMatch[0],
+                              searchResults: searchResults
+                            })
+                          })
+                          
+                          if (analyzeResponse.ok) {
+                            const result = await analyzeResponse.json()
+                            if (result.success) {
+                              autoConfigured = true
+                              // Send success message
+                              const successMsg = `\n\n✅ **Automatically configured ${result.suggestion.name} MCP server!**\n\nThe server has been added to your configuration and is ready to use.\n\n`
+                              const escapedSuccess = successMsg
+                                .replace(/\\/g, '\\\\')
+                                .replace(/"/g, '\\"')
+                                .replace(/\n/g, '\\n')
+                              controller.enqueue(encoder.encode(`0:"${escapedSuccess}"\n`))
+                            }
+                          }
+                        }
+                      } catch (error) {
+                        console.error('Auto-configuration error:', error)
+                      }
+                    }
+                    
                     // Create analysis instruction without repeating the tool results
-                    let analysisInstruction = `I've executed the ${toolCall.tool} tool and the results are displayed above. Now I'll analyze these results to answer your question: "${lastMessage.content}"`
+                    let analysisInstruction = autoConfigured 
+                      ? `I've successfully configured the MCP server from the GitHub repository. Let me explain what I found and what was configured.`
+                      : `I've executed the ${toolCall.tool} tool and the results are displayed above. Now I'll analyze these results to answer your question: "${lastMessage.content}"`
                     
                     // Special instructions for sequential thinking
                     if (toolCall.tool === 'sequentialthinking') {

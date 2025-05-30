@@ -17,8 +17,28 @@
       "env": {
         "EXA_API_KEY": "5f0303dd-e2f8-4210-82a7-885b686686a6"
       }
+    },
+    {
+      "id": "desktop-commander",
+      "name": "DesktopCommander",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@wonderwhy-er/desktop-commander@latest"
+      ],
+      "transportType": "stdio"
+    },
+    {
+      "id": "sequential-thinking",
+      "name": "Sequential Thinking",
+      "command": "npx",
+      "args": [
+        "-y",
+        "@modelcontextprotocol/server-sequential-thinking"
+      ],
+      "transportType": "stdio"
     }
   ],
   "version": "1.0",
-  "lastModified": "2025-05-29T08:06:21.950Z"
+  "lastModified": "2025-01-30T12:52:00.000Z"
 }

@@ -6,10 +6,14 @@ import ChatInterface from "@/components/chat-interface"
 import CanvasView from "@/components/canvas-view"
 import ResizablePanels from "@/components/resizable-panels"
 import { GeneratedImage } from "@/lib/image-utils"
+import { useMCPInitialization } from "@/hooks/use-mcp-initialization"
 
 export default function Home() {
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([])
   const [activeCanvasTab, setActiveCanvasTab] = useState("preview")
+  
+  // Initialize MCP state once at the app root
+  useMCPInitialization()
   
   return (
     <main className="h-screen bg-[#1E1E1E]">

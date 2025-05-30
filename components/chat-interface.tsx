@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button"
 import { Settings } from "lucide-react"
 import { useChatWithTools } from "@/hooks/use-chat-with-tools"
 import { toast } from "sonner"
+import { SecureApiKeyInput } from "./secure-api-key-input"
 
 interface FileUpload {
   file: File
@@ -61,6 +62,17 @@ export default function ChatInterface({ onGeneratedImagesChange, onImageGenerati
   const [isGeneratingImage, setIsGeneratingImage] = useState(false)
   
   // MCP tool execution state is now managed by useChatWithTools hook
+  
+  // MCP tool management state
+  const [enabledTools, setEnabledTools] = useState<Record<string, Record<string, boolean>>>({})
+  const [enabledServers, setEnabledServers] = useState<Record<string, boolean>>({})
+  
+  // API Key request state
+  const [apiKeyRequest, setApiKeyRequest] = useState<{
+    isOpen: boolean
+    serverName: string
+    serverInfo?: any
+  }>({ isOpen: false, serverName: '' })
   
   // Image generation settings
   const [imageQuality, setImageQuality] = useState<'standard' | 'hd'>(() => {
@@ -686,6 +698,80 @@ You can view it in the **Images** tab on the right.`,
     // Clear file after submission
     setSelectedFile(null)
   }, [input, selectedFile, originalHandleSubmit, handleImageGeneration, handleInputChange])
+  
+  const handleToolToggle = useCallback((serverId: string, toolName: string, enabled: boolean) => {
+    setEnabledTools(prev => ({
+      ...prev,
+      [serverId]: {
+        ...prev[serverId],
+        [toolName]: enabled
+      }
+    }))
+    console.log('Tool toggled:', { serverId, toolName, enabled })
+  }, [])
+  
+  const handleServerToggle = useCallback((serverId: string, enabled: boolean) => {
+    setEnabledServers(prev => ({
+      ...prev,
+      [serverId]: enabled
+    }))
+    console.log('Server toggled:', { serverId, enabled })
+  }, [])
+  
+  // Check messages for API key requests
+  useEffect(() => {
+    const lastMessage = messages[messages.length - 1]
+    if (lastMessage?.role === 'assistant' && lastMessage.content) {
+      // Check for API key request pattern: REQUEST_API_KEY:{...}
+      const apiKeyMatch = lastMessage.content.match(/REQUEST_API_KEY:({[^}]+})/)
+      if (apiKeyMatch) {
+        try {
+          const requestData = JSON.parse(apiKeyMatch[1])
+          setApiKeyRequest({
+            isOpen: true,
+            serverName: requestData.server,
+            serverInfo: requestData.info
+          })
+        } catch (e) {
+          console.error('Failed to parse API key request:', e)
+        }
+      }
+    }
+  }, [messages])
+  
+  const handleApiKeySubmit = useCallback((apiKey: string) => {
+    // Send the API key back to the assistant
+    const maskedKey = apiKey.length > 8 
+      ? apiKey.substring(0, 4) + '•'.repeat(apiKey.length - 8) + apiKey.substring(apiKey.length - 4)
+      : '•'.repeat(apiKey.length)
+      
+    // Create a message with the API key
+    const apiKeyMessage = `API_KEY_PROVIDED:${JSON.stringify({
+      server: apiKeyRequest.serverName,
+      apiKey: apiKey,
+      masked: maskedKey
+    })}`
+    
+    // Send as a new message
+    if (originalHandleSubmit) {
+      // Create a synthetic form event
+      const syntheticEvent = {
+        preventDefault: () => {},
+        target: {}
+      } as React.FormEvent<HTMLFormElement>
+      
+      // Temporarily set the input value
+      handleInputChange({ target: { value: apiKeyMessage } } as React.ChangeEvent<HTMLInputElement>)
+      
+      // Submit the message
+      setTimeout(() => {
+        originalHandleSubmit(syntheticEvent)
+      }, 0)
+    }
+    
+    // Close the dialog
+    setApiKeyRequest({ isOpen: false, serverName: '' })
+  }, [apiKeyRequest.serverName, originalHandleSubmit, handleInputChange])
 
   return (
     <div className="flex flex-col h-full border-r border-[#333333] bg-[#2B2B2B]">
@@ -799,6 +885,8 @@ You can view it in the **Images** tab on the right.`,
             onFileSelect={handleFileSelect}
             selectedFile={selectedFile}
             onFileRemove={handleFileRemove}
+            onToolToggle={handleToolToggle}
+            onServerToggle={handleServerToggle}
           />
         </div>
       </div>
@@ -818,6 +906,14 @@ You can view it in the **Images** tab on the right.`,
         onImageStyleChange={setImageStyle}
         imageSize={imageSize}
         onImageSizeChange={setImageSize}
+      />
+      
+      <SecureApiKeyInput
+        isOpen={apiKeyRequest.isOpen}
+        onClose={() => setApiKeyRequest({ isOpen: false, serverName: '' })}
+        onSubmit={handleApiKeySubmit}
+        serverName={apiKeyRequest.serverName}
+        serverInfo={apiKeyRequest.serverInfo}
       />
     </div>
   )

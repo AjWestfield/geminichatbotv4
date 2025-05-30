@@ -14,7 +14,20 @@ export class MCPConfigManager {
   static async loadConfig(): Promise<MCPConfig | null> {
     try {
       const data = await fs.readFile(this.configPath, 'utf-8')
-      return JSON.parse(data)
+      const parsed = JSON.parse(data)
+      
+      // Handle both old and new format
+      if (parsed.mcpServers) {
+        // Convert mcpServers format to servers array
+        const servers = Object.entries(parsed.mcpServers).map(([name, cfg]: [string, any]) => ({
+          id: `${name}-${Date.now()}`,
+          name,
+          ...cfg
+        }))
+        return { servers, version: '1.0', lastModified: new Date().toISOString() }
+      }
+      
+      return parsed
     } catch (error) {
       // File doesn't exist or is invalid
       return null
@@ -22,17 +35,49 @@ export class MCPConfigManager {
   }
   
   static async saveConfig(servers: MCPServerConfig[]): Promise<void> {
-    const config: MCPConfig = {
-      servers,
-      version: '1.0',
-      lastModified: new Date().toISOString()
+    // Check current format by reading existing file
+    let useServersFormat = true
+    try {
+      const existing = await fs.readFile(this.configPath, 'utf-8')
+      const parsed = JSON.parse(existing)
+      if (parsed.mcpServers) {
+        useServersFormat = false
+      }
+    } catch {
+      // Default to servers format if no file exists
     }
     
-    await fs.writeFile(
-      this.configPath,
-      JSON.stringify(config, null, 2),
-      'utf-8'
-    )
+    if (useServersFormat) {
+      // Save in servers array format
+      const config: MCPConfig = {
+        servers,
+        version: '1.0',
+        lastModified: new Date().toISOString()
+      }
+      
+      await fs.writeFile(
+        this.configPath,
+        JSON.stringify(config, null, 2),
+        'utf-8'
+      )
+    } else {
+      // Convert servers array to mcpServers object format
+      const mcpServers: Record<string, any> = {}
+      
+      for (const server of servers) {
+        const { id, name, ...config } = server
+        mcpServers[name] = config
+      }
+      
+      // Save in the mcpServers format
+      const configData = { mcpServers }
+      
+      await fs.writeFile(
+        this.configPath,
+        JSON.stringify(configData, null, 2),
+        'utf-8'
+      )
+    }
   }
   
   static async addServer(server: MCPServerConfig): Promise<void> {

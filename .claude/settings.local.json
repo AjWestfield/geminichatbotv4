@@ -45,7 +45,17 @@
       "Bash(/Users/andersonwestfield/.nvm/versions/node/v20.19.2/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg \"GOOGLE_GENERATIVE_AI_API_KEY\" --type-add 'config:*.{json,env,env.*}' -t js -t ts -t jsx -t tsx -t config)",
       "Bash(/Users/andersonwestfield/.nvm/versions/node/v20.19.2/lib/node_modules/@anthropic-ai/claude-code/vendor/ripgrep/arm64-darwin/rg \"GOOGLE_GENERATIVE_AI_API_KEY\")",
       "Bash(gh repo create:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(touch:*)",
+      "Bash(/Users/andersonwestfield/Desktop/geminichatbotv3/test-tool-count-fix-v2.sh)",
+      "Bash(/Users/andersonwestfield/Desktop/geminichatbotv3/test-mcp-add-fix.sh)",
+      "Bash(./fix-desktop-commander.sh:*)",
+      "Bash(npx eslint:*)",
+      "Bash(./test-desktop-commander-fix.sh:*)",
+      "Bash(./test-mcp-agentic-workflow.sh:*)",
+      "mcp__ide__executeCode",
+      "Bash(./test-claude-integration.sh:*)",
+      "Bash(git commit:*)"
     ],
     "deny": []
   },
