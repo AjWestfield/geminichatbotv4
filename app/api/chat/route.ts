@@ -5,8 +5,11 @@ import { MCPServerManager } from "@/lib/mcp/mcp-server-manager"
 import { MCPConfigManager } from "@/lib/mcp/mcp-config-manager"
 import { MCPGitHubPrompts } from "@/lib/mcp/mcp-github-prompts"
 import { MCP_AGENT_INSTRUCTIONS, MCP_SYSTEM_PROMPT } from "@/lib/mcp/mcp-agent-instructions"
-import { MCP_AGENT_INSTRUCTIONS_ENHANCED, MCP_SYSTEM_PROMPT_ENHANCED } from "@/lib/mcp/mcp-agent-instructions-enhanced"
+import { MCP_AGENT_INSTRUCTIONS_ENHANCED, MCP_SYSTEM_PROMPT_ENHANCED, MCP_AGENT_INSTRUCTIONS_WITH_PLANS } from "@/lib/mcp/mcp-agent-instructions-enhanced"
 import { getClaudeClient, formatMessagesForClaude, convertMCPToolsToClaudeTools, parseClaudeToolCalls, formatToolResultsForClaude } from "@/lib/claude-client"
+import { MCPPlanContextManager } from "@/lib/mcp/mcp-plan-context-manager"
+import { TavilyClient, WebSearchContextDetector } from "@/lib/tavily-client"
+import { ENHANCED_AGENT_INSTRUCTIONS_WITH_WEB_SEARCH } from "@/lib/mcp/mcp-agent-web-search-instructions"
 
 // Initialize Gemini AI
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY || "")
@@ -29,10 +32,29 @@ export async function POST(req: Request) {
       return handleClaudeRequest(messages, model);
     }
 
+    // Get active plan context if any
+    const messageIds = messages.map(m => m.id).filter(Boolean)
+    const activePlanContext = MCPPlanContextManager.getInstance().getActivePlanForConversation(messageIds)
+    
+    // Build system instruction with plan context and web search capabilities
+    let systemInstruction = MCP_SYSTEM_PROMPT_ENHANCED + '\n\n' + ENHANCED_AGENT_INSTRUCTIONS_WITH_WEB_SEARCH
+    
+    if (activePlanContext) {
+      systemInstruction += `\n\n## ACTIVE PLAN CONTEXT
+You are currently executing a plan with the following details:
+- Plan ID: ${activePlanContext.planId}
+- Current Task: ${activePlanContext.currentTask.id} - "${activePlanContext.currentTask.title}"
+- Task Status: ${activePlanContext.currentTask.status}
+- Progress: ${activePlanContext.completedTasks}/${activePlanContext.totalTasks} tasks completed
+
+IMPORTANT: Use this plan ID (${activePlanContext.planId}) for all [TASK_UPDATE] messages.
+Continue working on the current task and update its status as you progress.`
+    }
+    
     // Get the generative model with appropriate settings
     const modelConfig: any = { 
       model,
-      systemInstruction: `${MCP_SYSTEM_PROMPT_ENHANCED}`
+      systemInstruction
     }
     
     // Add specific configurations for video-capable models
@@ -137,6 +159,10 @@ Please ensure your analysis covers:
 
 Analyze the ENTIRE video duration, not just the beginning.`
     }
+    
+    // Check if web search is needed
+    const requiresWebSearch = WebSearchContextDetector.requiresWebSearch(messageContent)
+    let webSearchResults = null
     
     // Add text message
     let finalMessageContent = messageContent
@@ -434,6 +460,38 @@ After receiving the search results, I will automatically analyze them and config
       console.log(`Including transcription in analysis - Length: ${transcription.text.length} chars`)
     }
     
+    // Perform web search if needed
+    if (requiresWebSearch && !isMCPServerRequest) {
+      try {
+        const searchQuery = WebSearchContextDetector.extractSearchQuery(messageContent)
+        const searchContext = WebSearchContextDetector.getSearchContext(messages)
+        
+        // Initialize Tavily client
+        const tavilyApiKey = process.env.TAVILY_API_KEY || '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'
+        const tavily = new TavilyClient(tavilyApiKey)
+        
+        // Perform search
+        const searchResponse = await tavily.searchWithContext(searchQuery, searchContext, {
+          max_results: 5,
+          search_depth: 'advanced',
+          include_images: true
+        })
+        
+        webSearchResults = searchResponse
+        
+        // Create a clean context for the AI with search results
+        const searchResultsContext = searchResponse.results.map((result, index) => 
+          `[${index + 1}] ${result.title}\n   URL: ${result.url}\n   Content: ${result.content}\n   Published: ${result.published_date || 'Unknown'}\n   Relevance: ${(result.score * 100).toFixed(0)}%`
+        ).join('\n\n')
+        
+        // Add search context to the AI's message
+        finalMessageContent = `I found ${searchResponse.results.length} relevant sources for "${searchQuery}". Here are the search results:\n\n${searchResultsContext}\n\nBased on these sources, ` + finalMessageContent
+      } catch (error) {
+        console.error('Web search error:', error)
+        // Continue without search results
+      }
+    }
+    
     contentParts.push({ text: finalMessageContent })
     
     // Send message and get streaming response
@@ -447,6 +505,24 @@ After receiving the search results, I will automatically analyze them and config
     const stream = new ReadableStream({
       async start(controller) {
         try {
+          // If we have web search results, send them first as a special message type
+          if (webSearchResults) {
+            const searchData = {
+              query: WebSearchContextDetector.extractSearchQuery(messageContent),
+              results: TavilyClient.formatResultsWithThumbnails(webSearchResults.results),
+              images: webSearchResults.images,
+              responseTime: webSearchResults.response_time,
+              followUpQuestions: webSearchResults.follow_up_questions
+            }
+            
+            // Send web search results as a special data type
+            const escapedSearchData = JSON.stringify(searchData)
+              .replace(/\\/g, '\\\\')
+              .replace(/"/g, '\\"')
+            
+            controller.enqueue(encoder.encode(`data: 5:"${escapedSearchData}"\n\n`))
+          }
+          
           // First pass: collect the initial response and check for tool calls
           const chunks: string[] = []
           let hasToolCalls = false
@@ -471,7 +547,7 @@ After receiving the search results, I will automatically analyze them and config
               .replace(/\r/g, '\\r')
               .replace(/\t/g, '\\t')
             
-            controller.enqueue(encoder.encode(`0:"${escapedText}"\n`))
+            controller.enqueue(encoder.encode(`data: 0:"${escapedText}"\n\n`))
           } else {
             // Stream the response but remove TOOL_CALL blocks (we'll send them with results later)
             let cleanedResponse = responseBuffer
@@ -486,7 +562,7 @@ After receiving the search results, I will automatically analyze them and config
                 .replace(/\r/g, '\\r')
                 .replace(/\t/g, '\\t')
               
-              controller.enqueue(encoder.encode(`0:"${escapedText}"\n`))
+              controller.enqueue(encoder.encode(`data: 0:"${escapedText}"\n\n`))
             }
           }
           
@@ -531,7 +607,7 @@ ${toolResult}
                       .replace(/\r/g, '\\r')
                       .replace(/\t/g, '\\t')
                     
-                    controller.enqueue(encoder.encode(`0:"${escapedExecution}"\n`))
+                    controller.enqueue(encoder.encode(`data: 0:"${escapedExecution}"\n\n`))
                     
                     // Small delay to ensure tool results are processed
                     await new Promise(resolve => setTimeout(resolve, 500));
@@ -635,7 +711,7 @@ ${thinkingData.nextThoughtNeeded
                         .replace(/\r/g, '\\r')
                         .replace(/\t/g, '\\t')
                       
-                      controller.enqueue(encoder.encode(`0:"${escapedAnalysis}"\n`))
+                      controller.enqueue(encoder.encode(`data: 0:"${escapedAnalysis}"\n\n`))
                     }
                     
                     console.log('[ANALYSIS] Analysis response received')
@@ -648,7 +724,7 @@ ${thinkingData.nextThoughtNeeded
                       .replace(/\r/g, '\\r')
                       .replace(/\t/g, '\\t')
                     
-                    controller.enqueue(encoder.encode(`0:"${escapedError}"\n`))
+                    controller.enqueue(encoder.encode(`data: 0:"${escapedError}"\n\n`))
                   }
                 }
               }
@@ -656,7 +732,7 @@ ${thinkingData.nextThoughtNeeded
           }
           
           // Send done signal
-          controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`))
+          controller.enqueue(encoder.encode(`data: d:{"finishReason":"stop"}\n\n`))
         } catch (error) {
           console.error("Streaming error:", error)
           const errorMessage = error instanceof Error ? error.message : "Unknown error"
@@ -664,7 +740,7 @@ ${thinkingData.nextThoughtNeeded
             .replace(/\\/g, '\\\\')
             .replace(/"/g, '\\"')
             .replace(/\n/g, '\\n')
-          controller.enqueue(encoder.encode(`3:{"error":"${escapedError}"}\n`))
+          controller.enqueue(encoder.encode(`data: 3:"${escapedError}"\n\n`))
         } finally {
           controller.close()
         }
@@ -689,7 +765,7 @@ ${thinkingData.nextThoughtNeeded
       .replace(/"/g, '\\"')
       .replace(/\n/g, '\\n')
     return new Response(
-      `3:{"error":"${escapedError}"}\n`,
+      `3:"${escapedError}"\n`,
       { 
         status: 200, // Keep 200 for data stream compatibility
         headers: { 

@@ -53,7 +53,7 @@ export async function handleClaudeStreaming(
             
             // Send the chunk to the client in the expected format
             const escapedText = escapeText(text);
-            controller.enqueue(encoder.encode(`0:"${escapedText}"\n`));
+            controller.enqueue(encoder.encode(`data: 0:"${escapedText}"\n\n`));
           }
         }
 
@@ -80,19 +80,19 @@ ${result}
 [/TOOL_CALL]`;
             
             const escapedExecution = escapeText(toolExecutionMessage);
-            controller.enqueue(encoder.encode(`0:"${escapedExecution}"\n`));
+            controller.enqueue(encoder.encode(`data: 0:"${escapedExecution}"\n\n`));
           }
         }
 
         // Send completion signal in the expected format
-        controller.enqueue(encoder.encode(`d:{"finishReason":"stop"}\n`));
+        controller.enqueue(encoder.encode(`data: d:{"finishReason":"stop"}\n\n`));
         controller.close();
       } catch (error) {
         console.error('Claude streaming error:', error);
         // Send error in the expected format
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
         const escapedError = escapeText(errorMessage);
-        controller.enqueue(encoder.encode(`3:{"error":"${escapedError}"}\n`));
+        controller.enqueue(encoder.encode(`data: 3:{"error":"${escapedError}"}\n\n`));
         controller.close();
       }
     }
