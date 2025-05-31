@@ -11,14 +11,29 @@ export async function handleClaudeStreaming(
   // Create a text encoder for streaming
   const encoder = new TextEncoder();
   
-  // Helper function to escape text for the expected format
-  const escapeText = (text: string) => {
-    return text
-      .replace(/\\/g, '\\\\')
-      .replace(/"/g, '\\"')
-      .replace(/\n/g, '\\n')
-      .replace(/\r/g, '\\r')
-      .replace(/\t/g, '\\t');
+  // Helper function to format text for the AI SDK data stream format
+  const formatTextChunk = (text: string) => {
+    // Format as SSE: data: 0:"text"
+    return `data: 0:${JSON.stringify(text)}\n\n`;
+  };
+  
+  // Helper function to format tool call for the AI SDK format
+  const formatToolCall = (toolCall: any) => {
+    // Format as SSE: data: 9:{"toolCallId":"...","toolName":"...","args":{...}}
+    return `data: 9:${JSON.stringify({
+      toolCallId: `tool-${Date.now()}-${Math.random()}`,
+      toolName: toolCall.tool,
+      args: toolCall.arguments || {}
+    })}\n\n`;
+  };
+  
+  // Helper function to format tool result for the AI SDK format
+  const formatToolResult = (toolCallId: string, result: any) => {
+    // Format as SSE: data: a:{"toolCallId":"...","result":...}
+    return `data: a:${JSON.stringify({
+      toolCallId,
+      result
+    })}\n\n`;
   };
   
   // Create a readable stream for the response
@@ -51,9 +66,8 @@ export async function handleClaudeStreaming(
             const text = chunk.delta.text;
             fullContent += text;
             
-            // Send the chunk to the client in the expected format
-            const escapedText = escapeText(text);
-            controller.enqueue(encoder.encode(`data: 0:"${escapedText}"\n\n`));
+            // Send the chunk to the client in the AI SDK format
+            controller.enqueue(encoder.encode(formatTextChunk(text)));
           }
         }
 
@@ -63,9 +77,22 @@ export async function handleClaudeStreaming(
         if (toolCalls.length > 0) {
           // Process tool calls
           for (const toolCall of toolCalls) {
+            // Generate a unique tool call ID
+            const toolCallId = `tool-${Date.now()}-${Math.random()}`;
+            
+            // Send tool call notification
+            controller.enqueue(encoder.encode(formatToolCall({
+              ...toolCall,
+              toolCallId
+            })));
+            
+            // Execute the tool
             const result = await MCPToolsContext.executeToolCall(toolCall);
             
-            // Format the tool execution result to match frontend parser expectations
+            // Send tool result
+            controller.enqueue(encoder.encode(formatToolResult(toolCallId, result)));
+            
+            // Also send the formatted message for display
             const toolExecutionMessage = `[TOOL_CALL]
 ${
               JSON.stringify({
@@ -75,24 +102,22 @@ ${
               }, null, 2)
             }
 Tool executed successfully.
-${result}
+${JSON.stringify(result, null, 2)}
 [Tool execution completed]
 [/TOOL_CALL]`;
             
-            const escapedExecution = escapeText(toolExecutionMessage);
-            controller.enqueue(encoder.encode(`data: 0:"${escapedExecution}"\n\n`));
+            controller.enqueue(encoder.encode(formatTextChunk(toolExecutionMessage)));
           }
         }
 
-        // Send completion signal in the expected format
+        // Send completion signal in the AI SDK format
         controller.enqueue(encoder.encode(`data: d:{"finishReason":"stop"}\n\n`));
         controller.close();
       } catch (error) {
         console.error('Claude streaming error:', error);
-        // Send error in the expected format
+        // Send error in the AI SDK format
         const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        const escapedError = escapeText(errorMessage);
-        controller.enqueue(encoder.encode(`data: 3:{"error":"${escapedError}"}\n\n`));
+        controller.enqueue(encoder.encode(`data: 3:${JSON.stringify(errorMessage)}\n\n`));
         controller.close();
       }
     }
