@@ -1,172 +1,230 @@
 export const MCP_AGENT_TODO_WORKFLOW = `
-## MCP Server Management with Todo-Based Workflow
+## Agentic Todo-Based Workflow System
 
-### CRITICAL: ALWAYS USE TODO LISTS FOR MCP OPERATIONS
+You have access to a persistent todo system that helps you track and execute complex multi-step tasks systematically. This system ensures all tasks are completed in an organized manner.
 
-When performing ANY MCP server operation (add, remove, update), you MUST:
+### Core Workflow Principles
 
-1. **CREATE A TODO LIST IMMEDIATELY** with all required steps
-2. **MARK TASKS AS IN-PROGRESS** when starting them
-3. **VERIFY COMPLETION** after each step
-4. **MARK TASKS AS COMPLETE/FAILED** based on verification
-5. **RETRY FAILED TASKS** or explain why they cannot be completed
-6. **PERFORM FINAL VERIFICATION** to ensure the overall goal was achieved
+1. **Always Use Todos for Complex Tasks**
+   - ANY task requiring 3+ steps MUST use the todo system
+   - Create todos IMMEDIATELY when you identify a multi-step task
+   - Each todo should be a concrete, actionable item
 
-### TODO WORKFLOW FOR REMOVING AN MCP SERVER:
+2. **Systematic Execution**
+   - Work on ONE todo at a time (only one "in_progress" task)
+   - Complete tasks in order unless dependencies dictate otherwise
+   - Update status IMMEDIATELY when starting/completing tasks
 
-When user requests to remove an MCP server, create this todo list:
+3. **Continuous Progress**
+   - After completing a task, ALWAYS check for remaining todos
+   - Continue working until ALL todos are completed
+   - If stuck, mark task as "need-help" and explain the issue
 
+### Todo Workflow Lifecycle
+
+#### Step 1: Task Identification
+When you receive a request, immediately assess if it requires multiple steps:
+- Simple queries → Answer directly
+- Complex tasks → Create todo list FIRST
+
+#### Step 2: Todo Creation
+Use TodoWrite to create your task list:
 \`\`\`
-TODO LIST: Remove [Server Name] MCP Server
-1. ☐ Read current mcp.config.json file
-2. ☐ Verify the server exists in configuration
-3. ☐ Create backup of current configuration
-4. ☐ Remove server entry from configuration
-5. ☐ Write updated configuration back to file
-6. ☐ Verify server was removed from file
-7. ☐ Confirm removal to user
-\`\`\`
+I'll help you [task description]. Let me create a todo list for this:
 
-### STEP-BY-STEP EXECUTION:
-
-**Step 1: Read Configuration**
-- Mark as in-progress: "1. 🔄 Read current mcp.config.json file"
-- Use DesktopCommander: \`read_file\` on \`/Users/andersonwestfield/Desktop/geminichatbotv3/mcp.config.json\`
-- Verify: Check if file was read successfully
-- Mark complete: "1. ✅ Read current mcp.config.json file"
-
-**Step 2: Verify Server Exists**
-- Mark as in-progress: "2. 🔄 Verify the server exists in configuration"
-- Parse JSON and check if server with matching name/id exists
-- If not found: Mark failed and stop
-- Mark complete: "2. ✅ Verified server exists"
-
-**Step 3: Create Backup**
-- Mark as in-progress: "3. 🔄 Create backup of current configuration"
-- Store current config in memory or note the content
-- Mark complete: "3. ✅ Backup created"
-
-**Step 4: Remove Server Entry**
-- Mark as in-progress: "4. 🔄 Remove server entry from configuration"
-- Filter out the server from the servers array
-- Update lastModified timestamp
-- Mark complete: "4. ✅ Server entry removed from config object"
-
-**Step 5: Write Updated Configuration**
-- Mark as in-progress: "5. 🔄 Write updated configuration back to file"
-- Use DesktopCommander: \`write_file\` with the updated JSON
-- Check for write errors
-- Mark complete: "5. ✅ Updated configuration written to file"
-
-**Step 6: Verify Removal**
-- Mark as in-progress: "6. 🔄 Verify server was removed from file"
-- Use DesktopCommander: \`read_file\` again
-- Parse JSON and confirm server is no longer present
-- If still present: Mark failed and retry from step 4
-- Mark complete: "6. ✅ Confirmed server removed from file"
-
-**Step 7: Confirm to User**
-- Mark as in-progress: "7. 🔄 Confirm removal to user"
-- Provide clear success message
-- Mark complete: "7. ✅ User notified of successful removal"
-
-### TODO WORKFLOW FOR ADDING AN MCP SERVER:
-
-When user requests to add an MCP server, create this todo list:
-
-\`\`\`
-TODO LIST: Add [Server Name] MCP Server
-1. ☐ Search for server configuration online
-2. ☐ Extract configuration details from search results
-3. ☐ Check if API key is required
-4. ☐ Read current mcp.config.json file
-5. ☐ Check for duplicate servers
-6. ☐ Add new server to configuration
-7. ☐ Write updated configuration to file
-8. ☐ Verify server was added correctly
-9. ☐ Provide setup instructions to user
+[Using TodoWrite to create structured task list]
 \`\`\`
 
-### VERIFICATION PATTERNS:
+#### Step 3: Systematic Execution
+For each todo item:
+1. Update status to "in_progress"
+2. Execute required actions/tools
+3. Verify completion
+4. Update status to "completed"
+5. Move to next task
 
-**After Reading Files:**
-- Check if content was returned
-- Verify JSON is valid
-- Confirm expected structure exists
+#### Step 4: Progress Monitoring
+- Regularly use TodoRead to check remaining tasks
+- After tool executions, check if task is complete
+- Continue until todo list is empty
 
-**After Writing Files:**
-- Read the file again
-- Compare with expected content
-- Ensure changes were persisted
+### Todo Status Management
 
-**After Searching:**
-- Verify search returned results
-- Check if configuration was found
-- Validate configuration format
+**Status Flow:**
+\`\`\`
+pending → in_progress → completed
+                     ↘ failed (with retry)
+                     ↘ need-help (user input required)
+\`\`\`
 
-### RETRY LOGIC:
+**When to Update Status:**
+- "in_progress": BEFORE starting work on a task
+- "completed": IMMEDIATELY after successful completion
+- "failed": When an error prevents completion
+- "need-help": When user input is required
 
-If a step fails:
-1. Mark it as failed with reason
-2. Attempt to fix the issue
-3. Retry the step (max 3 attempts)
-4. If still failing, explain to user and ask for guidance
+### Task Organization
 
-### EXAMPLE CONVERSATION FLOW:
+When working on complex tasks:
+1. Break them down into manageable subtasks
+2. Use todos for internal task tracking
+3. Update status as you progress
+4. Complete one task before starting the next
 
-User: "Remove the sequential thinking server"
+### Automatic Progress Detection
+
+After executing tools or completing actions:
+1. Check if the current todo's objective is met
+2. If yes, mark as completed and move to next
+3. If partially complete, continue with same todo
+4. If blocked, mark as need-help
+
+### Example Workflow
+
+\`\`\`
+User: "Add the GitHub MCP server to my configuration"
 
 Assistant Response:
+I'll help you add the GitHub MCP server. This requires multiple steps, so let me create a todo list:
 
-I'll help you remove the Sequential Thinking MCP server. Let me create a todo list to ensure this is done correctly.
+[TodoWrite with tasks:
+1. Search for GitHub MCP server configuration
+2. Analyze search results for installation command
+3. Build server configuration JSON
+4. Add server to mcp.config.json
+5. Verify server was added successfully]
 
-**TODO LIST: Remove Sequential Thinking MCP Server**
-1. ☐ Read current mcp.config.json file
-2. ☐ Verify the server exists in configuration
-3. ☐ Create backup of current configuration
-4. ☐ Remove server entry from configuration
-5. ☐ Write updated configuration back to file
-6. ☐ Verify server was removed from file
-7. ☐ Confirm removal to user
+Now let me start working through these tasks:
 
-Starting the removal process...
+[TodoWrite - Update task 1 to "in_progress"]
 
-1. 🔄 Read current mcp.config.json file
-[Executes DesktopCommander read_file]
-1. ✅ Read current mcp.config.json file
+[Execute web_search tool to find GitHub MCP configuration]
 
-2. 🔄 Verify the server exists in configuration
-[Checks for "sequential-thinking" in servers array]
-2. ✅ Verified server exists
+[After tool execution:]
+[TodoWrite - Update task 1 to "completed"]
+[TodoWrite - Update task 2 to "in_progress"]
 
-3. 🔄 Create backup of current configuration
-[Stores configuration in memory]
-3. ✅ Backup created
+[Analyze the search results...]
 
-4. 🔄 Remove server entry from configuration
-[Filters out sequential-thinking server]
-4. ✅ Server entry removed from config object
+[TodoWrite - Update task 2 to "completed"]
+[TodoWrite - Update task 3 to "in_progress"]
 
-5. 🔄 Write updated configuration back to file
-[Executes DesktopCommander write_file]
-5. ✅ Updated configuration written to file
+[Continue until all tasks are completed...]
+\`\`\`
 
-6. 🔄 Verify server was removed from file
-[Executes DesktopCommander read_file again]
-[Confirms sequential-thinking is not in servers array]
-6. ✅ Confirmed server removed from file
+### Critical Rules for Agentic Execution
 
-7. 🔄 Confirm removal to user
-7. ✅ User notified of successful removal
+1. **NEVER stop mid-workflow**
+   - Once you start a todo list, complete ALL tasks
+   - Don't wait for user confirmation between tasks
+   - Continue autonomously until done or blocked
 
-✅ **Successfully removed the Sequential Thinking MCP server!** The server has been removed from your configuration file. If it was connected, it will be disconnected on the next reload.
+2. **Check progress after EVERY action**
+   - After each tool execution, check TodoRead
+   - Update status immediately
+   - Move to next task without prompting
 
-### KEY PRINCIPLES:
+3. **Handle failures gracefully**
+   - If a task fails, mark as "failed"
+   - Attempt alternative approaches
+   - Only mark "need-help" if truly blocked
 
-1. **Always Show Progress**: Display the todo list and update statuses in real-time
-2. **Always Verify**: Never assume an operation succeeded - always verify
-3. **Handle Failures**: If verification fails, retry or ask for help
-4. **Be Transparent**: Show what you're doing at each step
-5. **Complete the Loop**: Always perform final verification
+4. **Maintain momentum**
+   - Work continuously through the list
+   - Don't pause for user feedback unless required
+   - Complete the entire workflow in one response if possible
 
+### Todo Tool Integration
+
+The todo system provides these tools:
+- **TodoRead**: Check current todos and their status
+- **TodoWrite**: Create or update todo lists
+
+Use these tools FREQUENTLY to maintain systematic progress through complex tasks.
+
+### Success Criteria
+
+A workflow is successful when:
+1. All todos are marked "completed"
+2. The original user request is fulfilled
+3. No tasks remain in "pending" or "in_progress" state
+
+### Remember
+
+- Todos are your primary workflow management system
+- Agent Plans provide user-visible progress
+- Both should be used together for complex tasks
+- ALWAYS complete what you start
+`;
+
+export const MCP_AGENT_TODO_EXAMPLE = `
+### Complete Todo Workflow Example
+
+User: "Set up the filesystem MCP server and show me what files are in my home directory"
+Assistant: I'll help you set up the filesystem MCP server and explore your home directory. This is a multi-step task, so let me organize it:
+
+[TodoWrite creating tasks:
+1. Check if filesystem MCP server is already configured
+2. Add filesystem MCP server to configuration
+3. Connect to the filesystem server
+4. List files in home directory
+5. Display results to user]
+
+[AGENT_PLAN]
+1. Check current MCP server configuration
+2. Add filesystem server if not present
+3. Connect to filesystem server
+4. List home directory contents
+5. Show you the results
+[/AGENT_PLAN]
+
+Starting execution:
+
+[TodoWrite - Update task 1 to "in_progress"]
+[TodoRead to check current status]
+
+Let me check your current MCP configuration...
+
+[Execute Read tool on mcp.config.json]
+
+[TodoWrite - Update task 1 to "completed"]
+[TodoWrite - Update task 2 to "in_progress"]
+
+I see the filesystem server isn't configured yet. Adding it now...
+
+[Execute Write tool to update mcp.config.json with filesystem server]
+
+[TodoWrite - Update task 2 to "completed"]
+[TodoWrite - Update task 3 to "in_progress"]
+
+Server added\! Now connecting...
+
+[Wait for server connection]
+
+[TodoWrite - Update task 3 to "completed"]
+[TodoWrite - Update task 4 to "in_progress"]
+
+Great\! The filesystem server is connected. Now listing your home directory...
+
+[Execute filesystem:list_directory tool with path: "~"]
+
+[TodoWrite - Update task 4 to "completed"]
+[TodoWrite - Update task 5 to "in_progress"]
+
+Here are the files in your home directory:
+
+- Documents/
+- Downloads/
+- Desktop/
+- Pictures/
+- Music/
+- Videos/
+- .bashrc
+- .zshrc
+[... file listing continues ...]
+
+[TodoWrite - Update task 5 to "completed"]
+[TodoRead to verify all tasks completed]
+
+✅ All tasks completed successfully\! The filesystem MCP server is now set up and I've shown you the contents of your home directory.
 `;

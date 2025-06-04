@@ -1,227 +1,201 @@
-# Gemini Chatbot v3 🚀
+# Gemini Chatbot v4
 
-A next-generation multimodal AI chatbot with advanced MCP (Model Context Protocol) integration, intelligent tool execution, and comprehensive media support powered by Google Gemini, GPT-Image-1, and WaveSpeed AI.
+A powerful, feature-rich AI chatbot application with advanced image and video generation capabilities, persistence, and multi-modal support.
 
-![Gemini Chatbot v3](https://img.shields.io/badge/Next.js-15.2.4-black?style=for-the-badge&logo=next.js)
-![TypeScript](https://img.shields.io/badge/TypeScript-5.0-blue?style=for-the-badge&logo=typescript)
-![Tailwind CSS](https://img.shields.io/badge/Tailwind-3.4-38B2AC?style=for-the-badge&logo=tailwind-css)
-![MCP Protocol](https://img.shields.io/badge/MCP-Protocol-green?style=for-the-badge)
+## 🚀 Key Features
 
-## ✨ Features
+### 💬 Chat Capabilities
+- **Multi-Model Support**: Gemini, GPT-4, Claude, and more
+- **Real-time Streaming**: Smooth, responsive chat experience
+- **Chat Persistence**: Save and reload conversations with Supabase
+- **File Uploads**: Support for images, PDFs, and documents
+- **Voice Input**: Built-in speech-to-text functionality
 
-### 🤖 AI Chat
-- **Multiple Gemini Models**: Gemini 2.5 Flash, Gemini Pro, Gemini 2.0 Flash
-- **Real-time Streaming**: Smooth, responsive chat experience with tool execution
-- **File Attachments**: Support for images, PDFs, documents, audio, and video
-- **Smart Context**: Maintains conversation history with MCP tool awareness
+### 🎨 Image Generation & Editing
+- **Multiple Image Models**: DALL-E 3, Recraft V3, Ideogram, and more
+- **Advanced Editing**: Edit uploaded and generated images
+- **HEIC Support**: Automatic conversion of HEIC images to JPEG
+- **Aspect Ratio Detection**: Automatic and manual aspect ratio options
+- **Background Generation**: AI-powered background creation for images
+- **Persistent Storage**: Images saved to Vercel Blob Storage
+- **Fixed Deletion**: Deleted images now stay deleted after refresh
 
-### 🔧 MCP (Model Context Protocol) Integration
-- **Extensible Tool System**: Connect any MCP-compatible server
-- **Intelligent Context**: AI automatically uses available tools
-- **Multiple Transports**: stdio and HTTP transport support
-- **Smart Discovery**: Natural language server addition with AI assistance
-- **GitHub Intelligence**: Automatic MCP configuration from GitHub repos
-- **Visual Feedback**: Tool execution animations and result displays
+### 🎬 Video Generation
+- **Kling Video Integration**: Generate videos from images
+- **Multiple Quality Options**: Standard and Pro quality settings
+- **Progress Tracking**: Real-time video generation status
+- **Video Gallery**: Organized view of all generated videos
+- **Persistence**: Videos saved to database and storage
 
-### 🎨 Image Generation
-- **Dual Model System**:
-  - **HD Quality**: GPT-Image-1 for photorealistic, detailed images
-  - **Standard Quality**: WaveSpeed AI (Flux Dev Ultra Fast) for quick generation
-- **Advanced Features**:
-  - Image editing capabilities
-  - Gallery view with search and filtering
-  - Download and management tools
-  - Smart storage management
-  - Real-time generation progress
+### 🔧 Advanced Features
+- **MCP (Model Context Protocol) Integration**: 
+  - GitHub integration for code analysis
+  - Web search capabilities with Tavily
+  - File system access via Desktop Commander
+  - Sequential thinking for complex tasks
+- **Enhanced Search**: AI-powered search across chats
+- **Tool Usage Tracking**: Monitor AI tool usage in real-time
+- **Auto-save**: Automatic saving of chats and media
 
-### 📱 Multimodal Support
-- **Image Analysis**: Upload and analyze images with AI
-- **Audio Transcription**: Automatic transcription via Whisper with timestamps
-- **Video Analysis**: Full video analysis with transcription and thumbnails
-- **Document Processing**: PDF and document analysis
-- **Enhanced File Preview**: Modal with transcription tabs and segments
+## 🛠️ Installation
 
-### 🎯 UI/UX Improvements
-- **Three-Panel Layout**: MCP panel, chat interface, and canvas view
-- **Resizable Panels**: Adjustable panels for optimal workflow
-- **Dark Theme**: Modern, eye-friendly interface
-- **Toast Notifications**: Visual feedback for all actions
-- **Progress Tracking**: Real-time upload and generation progress
-- **Responsive Design**: Works seamlessly on all devices
-- **Professional Animations**: Smooth transitions and loading states
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js 20.x or higher
-- npm or yarn
-- API keys for various services
-
-### Installation
-
-1. Clone the repository:
+1. **Clone the repository**
 ```bash
-git clone https://github.com/ajwestfield/geminichatbotv3.git
-cd geminichatbotv3
+git clone https://github.com/ajwestfield/geminichatbotv4.git
+cd geminichatbotv4
 ```
 
-2. Install dependencies:
+2. **Install dependencies**
 ```bash
 npm install
 ```
 
-3. Set up environment variables:
+3. **Set up environment variables**
 ```bash
 cp .env.example .env.local
 ```
 
-4. Add your API keys to `.env.local`:
+4. **Configure your API keys in `.env.local`**
 ```env
-# Gemini API
-GEMINI_API_KEY=your_gemini_api_key
+# Required
+GEMINI_API_KEY=your_gemini_key
+OPENAI_API_KEY=your_openai_key
 
-# Image Generation
-OPENAI_API_KEY=your_openai_api_key
-WAVESPEED_API_KEY=your_wavespeed_api_key
+# Optional but recommended
+ANTHROPIC_API_KEY=your_claude_key
+REPLICATE_API_KEY=your_replicate_key
+TAVILY_API_KEY=your_tavily_key
 
-# Optional Services
-ANTHROPIC_API_KEY=your_anthropic_api_key
-REPLICATE_API_KEY=your_replicate_api_key
-TAVILY_API_KEY=your_tavily_api_key
-
-# Storage
+# For persistence (optional)
+SUPABASE_URL=your_supabase_url
+SUPABASE_API_KEY=your_supabase_key
 BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
-
-# Database (optional)
-POSTGRES_URL=your_postgres_url
-REDIS_URL=your_redis_url
 ```
 
-5. Run the development server:
+5. **Set up database (optional)**
+```bash
+node setup-persistence.js
+```
+
+6. **Run the development server**
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) to see the app.
+## 📊 Database Setup
 
-## 🛠️ Tech Stack
+If you want to enable persistence:
 
-- **Framework**: Next.js 15.2.4 (App Router)
-- **Language**: TypeScript
-- **Styling**: Tailwind CSS + shadcn/ui
-- **AI Models**: 
-  - Google Gemini (2.5 Flash, Pro, 2.0 Flash)
-  - OpenAI GPT-Image-1
-  - WaveSpeed AI (Flux Dev)
-  - OpenAI Whisper (Audio transcription)
-- **Protocols**: MCP (Model Context Protocol)
-- **State Management**: React Hooks + Context
-- **Animation**: Framer Motion
-- **Storage**: LocalStorage with smart quota management
-- **Real-time**: Server-Sent Events for streaming
+1. Create a Supabase project at [supabase.com](https://supabase.com)
+2. Run the SQL schema from `DATABASE_SETUP.sql`
+3. Add your Supabase credentials to `.env.local`
+4. Create a Vercel Blob store for image storage
+5. Run `node setup-persistence.js` to verify configuration
 
-## 📊 Model Comparison
+## 🎯 Recent Updates (v4)
 
-| Feature | GPT-Image-1 (HD) | WaveSpeed AI (Standard) |
-|---------|-----------------|------------------------|
-| Quality | Photorealistic, detailed | Good quality, fast |
-| Speed | 30-45 seconds | 3-5 seconds |
-| Text Rendering | Excellent | Good |
-| Best For | Professional work, text | Quick iterations |
+### Image Management Improvements
+- ✅ Fixed image deletion persistence - deleted images no longer reappear
+- ✅ Automatic localStorage cleanup when persistence is enabled
+- ✅ Database as source of truth for image storage
+- ✅ Enhanced image editing with background generation
+- ✅ HEIC to JPEG conversion support
 
-## 🔧 Key Improvements in v3
+### Video Generation
+- ✅ Kling AI video generation from images
+- ✅ Real-time progress tracking
+- ✅ Video persistence and gallery view
+- ✅ Quality selection (Standard/Pro)
 
-### MCP Integration
-- ✅ Full Model Context Protocol support
-- ✅ Intelligent tool discovery and execution
-- ✅ GitHub repository analysis for auto-configuration
-- ✅ Natural language server management
-- ✅ Visual tool execution feedback
+### UI/UX Enhancements
+- ✅ Auto-detection of image aspect ratios
+- ✅ Inline image options for quick actions
+- ✅ Improved error handling and user feedback
+- ✅ Enhanced search functionality
+- ✅ Better file upload experience
 
-### Performance
-- ✅ Optimized localStorage management (auto-cleanup, size limits)
-- ✅ Efficient image gallery with lazy loading
-- ✅ Smart caching strategies
-- ✅ Just-in-time MCP connections
+### Technical Improvements
+- ✅ Fixed infinite loop issues
+- ✅ Improved streaming performance
+- ✅ Better error handling for quota limits
+- ✅ Enhanced MCP tool integration
+- ✅ Optimized localStorage usage
 
-### Reliability
-- ✅ Comprehensive error handling with user-friendly messages
-- ✅ Automatic fallback systems
-- ✅ Graceful degradation
-- ✅ Connection retry logic for all services
+## 🤝 MCP (Model Context Protocol) Setup
 
-### User Experience
-- ✅ Three-panel responsive layout
-- ✅ Enhanced file preview with transcription tabs
-- ✅ Professional animations and transitions
-- ✅ Toast notifications for all actions
-- ✅ Real-time progress indicators
+To enable MCP features:
 
-### Code Quality
-- ✅ TypeScript throughout
-- ✅ Clean component architecture
-- ✅ Comprehensive error boundaries
-- ✅ Proper state management
-- ✅ Modular MCP system
+1. Edit `mcp.config.json` with your server configurations
+2. Available servers:
+   - GitHub integration for code analysis
+   - Web search via Tavily
+   - Desktop Commander for file access
+   - Sequential thinking for complex reasoning
 
-## 📝 Usage Examples
+## 🎨 Image Models Available
 
-### Chat with Gemini
-```
-"Explain quantum computing in simple terms"
-"Write a Python script to analyze CSV files"
-"Help me plan a trip to Japan"
-```
+- **DALL-E 3**: High-quality, creative images
+- **Recraft V3**: Artistic and stylized images
+- **Ideogram**: Text-accurate image generation
+- **Flux Schnell**: Fast, efficient generation
+- **Flux Pro**: Professional quality images
+- **Stable Diffusion XL**: Open-source alternative
 
-### Generate Images
-**HD Quality (GPT-Image-1)**:
-```
-"Create a photorealistic portrait of a cyberpunk astronaut"
-"Design a modern logo with the text 'FUTURE TECH'"
-```
+## 🔐 Security Notes
 
-**Standard Quality (WaveSpeed)**:
-```
-"Simple cartoon cat illustration"
-"Abstract geometric pattern"
-```
+- API keys are stored locally in `.env.local`
+- Never commit your `.env.local` file
+- Use environment variables for production
+- Enable RLS (Row Level Security) in Supabase
 
-### Use MCP Tools
-```
-"Use the weather tool to check the forecast for San Francisco"
-"Search the web for the latest AI news"
-"Calculate the compound interest on $10,000 at 5% for 10 years"
-```
+## 📝 Usage Tips
 
-### Add MCP Servers
-```
-"Add the filesystem MCP server"
-"Add MCP server from https://github.com/owner/repo"
-"Connect to the sequential thinking server"
-```
+1. **Chat Persistence**: Click on any chat in the sidebar to reload it
+2. **Image Editing**: Click the edit button on any image
+3. **Video Generation**: Use the "Animate" button on images
+4. **Search**: Use the search box to find past conversations
+5. **Tool Usage**: Watch the tool indicator to see AI reasoning
 
-## 🤝 Contributing
+## 🐛 Troubleshooting
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+### Images not persisting?
+- Check your Supabase and Blob Storage credentials
+- Run `node verify-persistence.js` to test configuration
+
+### HEIC images not displaying?
+- The app automatically converts HEIC to JPEG
+- Check the console for conversion errors
+
+### Videos stuck in processing?
+- Check your Replicate API key
+- Verify you have credits available
+
+## 🚧 Known Issues
+
+- Large file uploads may be slow
+- Some video generations may timeout
+- Search results are limited to recent chats
+
+## 🤖 Contributing
+
+Contributions are welcome! Please:
+1. Fork the repository
+2. Create a feature branch
+3. Commit your changes
+4. Push to the branch
+5. Open a Pull Request
 
 ## 📄 License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+MIT License - see LICENSE file for details
 
 ## 🙏 Acknowledgments
 
-- Google Gemini team for the amazing AI models
-- OpenAI for GPT-Image-1
-- WaveSpeed AI for fast image generation
-- shadcn/ui for the beautiful components
-- All contributors and testers
-
-## 📧 Contact
-
-Anderson Westfield - [@ajwestfield](https://github.com/ajwestfield)
-
-Project Link: [https://github.com/ajwestfield/geminichatbotv3](https://github.com/ajwestfield/geminichatbotv3)
+- Built with Next.js 14 and React
+- UI components from shadcn/ui
+- Powered by various AI APIs
+- MCP protocol by Anthropic
 
 ---
 
-Built with ❤️ by Anderson Westfield
+**Latest Update**: June 4, 2025 - Fixed image deletion persistence issue

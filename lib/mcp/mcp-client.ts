@@ -37,6 +37,29 @@ export class MCPClientWrapper {
     private config: MCPServerConfig
   ) {}
 
+  /**
+   * Substitute environment variables in a string
+   * Replaces ${VAR_NAME} with the value from process.env
+   */
+  private substituteEnvVars(value: string): string {
+    return value.replace(/\$\{([^}]+)\}/g, (match, varName) => {
+      return process.env[varName] || match;
+    });
+  }
+
+  /**
+   * Process environment variables object, substituting any ${VAR} patterns
+   */
+  private processEnvVars(env?: Record<string, string>): Record<string, string> | undefined {
+    if (!env) return undefined;
+    
+    const processed: Record<string, string> = {};
+    for (const [key, value] of Object.entries(env)) {
+      processed[key] = this.substituteEnvVars(value);
+    }
+    return processed;
+  }
+
   async connect(): Promise<void> {
     if (this.connected && this.isClientAlive()) {
       console.log('Already connected to MCP server:', this.config.name);
@@ -91,7 +114,7 @@ export class MCPClientWrapper {
           args: this.config.args,
           env: {
             ...process.env,
-            ...this.config.env,
+            ...this.processEnvVars(this.config.env),
           },
           stderr: 'pipe' as const, // Pipe stderr so we can read error output
         };

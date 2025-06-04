@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import { Download, Trash2, Search, Filter, Wand2 } from "lucide-react"
+import { Download, Trash2, Search, Filter, Wand2, Video } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
@@ -20,19 +20,59 @@ import {
 } from "@/lib/image-utils"
 import { cn } from "@/lib/utils"
 import { ImageEditModal } from "./image-edit-modal"
+import { ImageLoadingCard } from "./image-loading-card"
+import { useImageProgressStore } from "@/lib/stores/image-progress-store"
 
 interface ImageGalleryProps {
   images: GeneratedImage[]
   onImagesChange?: (images: GeneratedImage[]) => void
+  onAnimateImage?: (image: GeneratedImage) => void
+  autoOpenEditId?: string | null // ID of image to auto-open for editing
+  onEditComplete?: (editedImage: GeneratedImage) => void
 }
 
-export function ImageGallery({ images: propImages, onImagesChange }: ImageGalleryProps) {
+export function ImageGallery({ images: propImages, onImagesChange, onAnimateImage, autoOpenEditId }: ImageGalleryProps) {
   const [images, setImages] = useState<GeneratedImage[]>(propImages)
   const [selectedImage, setSelectedImage] = useState<GeneratedImage | null>(null)
   const [editingImage, setEditingImage] = useState<GeneratedImage | null>(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [qualityFilter, setQualityFilter] = useState<string>("all")
   const [isLoading, setIsLoading] = useState(false)
+  
+  const { getAllGeneratingImages, removeProgress, calculateProgress } = useImageProgressStore()
+  const generatingImages = getAllGeneratingImages()
+  
+  // Update progress calculations every second
+  useEffect(() => {
+    const interval = setInterval(() => {
+      generatingImages.forEach(progress => {
+        calculateProgress(progress.imageId)
+        
+        // Check if any generation completed
+        if (progress.status === 'completed' && progress.generatedImage) {
+          // Add the completed image to the gallery
+          const newImage = progress.generatedImage
+          setImages(prev => {
+            // Check if image already exists
+            if (prev.some(img => img.id === newImage.id)) {
+              return prev
+            }
+            const updated = [...prev, newImage]
+            onImagesChange?.(updated)
+            saveGeneratedImages(updated)
+            return updated
+          })
+          
+          // Remove from progress store after a short delay
+          setTimeout(() => {
+            removeProgress(progress.imageId)
+          }, 500)
+        }
+      })
+    }, 1000)
+    
+    return () => clearInterval(interval)
+  }, [generatingImages, calculateProgress, removeProgress, onImagesChange])
 
   // Sync with prop changes - properly handle isGenerating state transitions
   useEffect(() => {
@@ -75,15 +115,17 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
     })
   }, [propImages])
 
-  // Load images from localStorage on mount
+  // Load images from localStorage on mount - DISABLED to prevent race condition
+  // Images are now loaded in page.tsx with proper database/localStorage merge
   useEffect(() => {
-    if (images.length === 0) {
-      const savedImages = loadGeneratedImages()
-      if (savedImages.length > 0) {
-        setImages(savedImages)
-        onImagesChange?.(savedImages)
-      }
-    }
+    // Commenting out to prevent interference with page.tsx loading
+    // if (images.length === 0) {
+    //   const savedImages = loadGeneratedImages()
+    //   if (savedImages.length > 0) {
+    //     setImages(savedImages)
+    //     onImagesChange?.(savedImages)
+    //   }
+    // }
   }, [images.length, onImagesChange])
 
   // Save images to localStorage when they change
@@ -93,21 +135,37 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
     }
   }, [images])
 
-  // Filter images based on search and quality
-  const filteredImages = images.filter(image => {
-    // Show images that are generating or have valid URLs
-    if (!image.isGenerating && (!image.url || image.url.trim() === '')) {
-      return false
+  // Auto-open edit modal for specific image
+  useEffect(() => {
+    if (autoOpenEditId && images.length > 0) {
+      const imageToEdit = images.find(img => img.id === autoOpenEditId)
+      if (imageToEdit) {
+        console.log('[ImageGallery] Auto-opening edit modal for image:', autoOpenEditId)
+        setEditingImage(imageToEdit)
+      }
     }
+  }, [autoOpenEditId, images])
 
-    const matchesSearch = searchQuery === "" ||
-      image.prompt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      image.revisedPrompt?.toLowerCase().includes(searchQuery.toLowerCase())
+  // Filter images based on search and quality, and deduplicate by ID
+  const filteredImages = images
+    .filter((image, index, array) => {
+      // First, deduplicate by ID (keep only the first occurrence)
+      return array.findIndex(img => img.id === image.id) === index
+    })
+    .filter(image => {
+      // Show images that are generating or have valid URLs
+      if (!image.isGenerating && (!image.url || image.url.trim() === '')) {
+        return false
+      }
 
-    const matchesQuality = qualityFilter === "all" || image.quality === qualityFilter
+      const matchesSearch = searchQuery === "" ||
+        image.prompt.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        image.revisedPrompt?.toLowerCase().includes(searchQuery.toLowerCase())
 
-    return matchesSearch && matchesQuality
-  })
+      const matchesQuality = qualityFilter === "all" || image.quality === qualityFilter
+
+      return matchesSearch && matchesQuality
+    })
 
   const handleDownload = async (image: GeneratedImage, e?: React.MouseEvent) => {
     e?.stopPropagation()
@@ -122,8 +180,12 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
     }
   }
 
-  const handleDelete = (imageId: string, e?: React.MouseEvent) => {
+  const handleDelete = async (imageId: string, e?: React.MouseEvent) => {
     e?.stopPropagation()
+    
+    console.log('[ImageGallery] Deleting image:', imageId)
+    
+    // Optimistically update UI
     const updatedImages = images.filter(img => img.id !== imageId)
     setImages(updatedImages)
     onImagesChange?.(updatedImages)
@@ -133,17 +195,67 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
     if (selectedImage?.id === imageId) {
       setSelectedImage(null)
     }
+
+    // Delete from database
+    try {
+      // Find the image to get its database ID if different from local ID
+      const imageToDelete = images.find(img => img.id === imageId)
+      if (!imageToDelete) {
+        console.warn('[ImageGallery] Image not found for deletion:', imageId)
+        return
+      }
+
+      // Use the appropriate ID for deletion
+      // If the image has been saved to DB, it might have a different ID
+      const deleteId = imageId
+      
+      const response = await fetch(`/api/images/${encodeURIComponent(deleteId)}`, {
+        method: 'DELETE',
+      })
+
+      const data = await response.json()
+
+      if (!response.ok) {
+        console.error('[ImageGallery] Failed to delete from database:', data.error)
+        // Optionally restore the image if deletion failed
+        // setImages([...updatedImages, imageToDelete])
+        // onImagesChange?.([...updatedImages, imageToDelete])
+      } else {
+        console.log('[ImageGallery] Successfully deleted from database:', deleteId)
+      }
+    } catch (error) {
+      console.error('[ImageGallery] Error deleting image:', error)
+      // Optionally restore the image if deletion failed
+    }
   }
 
   const handleEditComplete = (editedImage: GeneratedImage) => {
+    console.log('[ImageGallery] Edit completed, adding image:', {
+      id: editedImage.id,
+      originalImageId: editedImage.originalImageId,
+      isGenerating: editedImage.isGenerating,
+      prompt: editedImage.prompt,
+      urlType: editedImage.url.startsWith('data:') ? 'data URL' : 'blob URL'
+    })
+    
     const updatedImages = [...images, editedImage]
     setImages(updatedImages)
+    
+    // Trigger parent's onChange callback to ensure database persistence
     onImagesChange?.(updatedImages)
-    saveGeneratedImages(updatedImages)
+    
+    // Only save to localStorage if we don't have data URLs
+    // Data URLs are too large and cause quota errors
+    if (!editedImage.url.startsWith('data:')) {
+      saveGeneratedImages(updatedImages)
+    } else {
+      console.log('[ImageGallery] Skipping localStorage save for data URL to prevent quota error')
+    }
+    
     setEditingImage(null)
   }
 
-  if (images.length === 0) {
+  if (images.length === 0 && generatingImages.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center h-full text-center p-8">
         <div className="w-20 h-20 rounded-full bg-[#2B2B2B] flex items-center justify-center mb-4">
@@ -192,7 +304,8 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
         <div className="flex items-center justify-between text-sm">
           <div className="flex items-center gap-3">
             <span className="text-gray-400">
-              {filteredImages.length} {filteredImages.length === 1 ? 'image' : 'images'}
+              {filteredImages.length + generatingImages.length} {filteredImages.length + generatingImages.length === 1 ? 'image' : 'images'}
+              {generatingImages.length > 0 && ` (${generatingImages.length} generating)`}
             </span>
             {images.length > 0 && (
               <>
@@ -213,8 +326,12 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
               </>
             )}
           </div>
-          <span className="text-gray-400">
-            Powered by WaveSpeed AI
+          <span className="text-gray-400 text-xs">
+            {images.some(img => img.model?.includes('gpt-image-1')) && images.some(img => img.model?.includes('flux') || img.model?.includes('wavespeed')) 
+              ? 'Powered by GPT-Image-1 & WaveSpeed AI'
+              : images.some(img => img.model?.includes('gpt-image-1'))
+              ? 'Powered by GPT-Image-1'
+              : 'Powered by WaveSpeed AI'}
           </span>
         </div>
       </div>
@@ -222,7 +339,25 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
       {/* Image Grid */}
       <ScrollArea className="flex-1 p-4">
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+          {/* Show generating images first */}
+          {generatingImages.map((progress) => (
+            <ImageLoadingCard
+              key={progress.imageId}
+              imageId={progress.imageId}
+              onCancel={(id) => {
+                removeProgress(id)
+                // TODO: Cancel actual API request if possible
+              }}
+            />
+          ))}
+          
+          {/* Then show completed images */}
           {filteredImages.map((image) => {
+            // Skip if this image is currently generating
+            if (generatingImages.some(g => g.imageId === image.id)) {
+              return null
+            }
+            
             return (
               <div
                 key={image.id}
@@ -288,6 +423,21 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
                     >
                       <Wand2 className="w-4 h-4" />
                     </Button>
+                    {onAnimateImage && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="w-8 h-8 bg-purple-600/50 hover:bg-purple-600/70"
+                        onClick={(e) => {
+                          e.stopPropagation()
+                          onAnimateImage(image)
+                        }}
+                        disabled={image.isGenerating || !image.url}
+                        title="Animate image"
+                      >
+                        <Video className="w-4 h-4" />
+                      </Button>
+                    )}
                     <Button
                       size="icon"
                       variant="ghost"
@@ -417,6 +567,20 @@ export function ImageGallery({ images: propImages, onImagesChange }: ImageGaller
                       <Wand2 className="w-4 h-4 mr-2" />
                       Edit
                     </Button>
+                    {onAnimateImage && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="border-purple-600/50 hover:bg-purple-600/10"
+                        onClick={() => {
+                          setSelectedImage(null)
+                          onAnimateImage(selectedImage)
+                        }}
+                      >
+                        <Video className="w-4 h-4 mr-2" />
+                        Animate
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"

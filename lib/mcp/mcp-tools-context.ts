@@ -71,6 +71,7 @@ export class MCPToolsContext {
     
     console.log(`[MCPToolsContext] Total tools available: ${tools.length}`)
     
+    
     // Generate system prompt for the AI
     const systemPrompt = this.generateSystemPrompt(tools)
     
@@ -85,7 +86,27 @@ export class MCPToolsContext {
     
     console.log(`[MCPToolsContext] Generating system prompt for ${tools.length} tools`)
     
-    let prompt = `You are an AI assistant with access to external tools via MCP (Model Context Protocol). You MUST use these tools when relevant to the user's request.\n\n`
+    let prompt = `You are an AI assistant with access to external tools via MCP (Model Context Protocol). You MUST use these tools when relevant to the user's request.
+
+You also have VIDEO GENERATION capabilities using Replicate's Kling v1.6 models:
+
+**Video Generation Models:**
+- **Standard Model** (720p): Text-to-video or Image-to-video, 5-10 seconds
+- **Pro Model** (1080p): Image-to-video only (requires image), higher quality
+
+**How to Generate Videos:**
+- Text prompts: "Generate a video of [description]"
+- Image animation: Users can click the purple "Animate" button on images
+- Duration options: 5s or 10s
+- Aspect ratios: 16:9, 9:16, 1:1
+
+When users request video generation:
+1. For text-to-video: Use Standard model
+2. For animating images: Can use either model (Pro requires image)
+3. Be specific in prompts for better results
+4. Videos appear in the Video tab when complete (2-8 minutes)
+
+\n\n`
     prompt += `Available tools:\n\n`
     
     // Group tools by server
@@ -119,6 +140,12 @@ export class MCPToolsContext {
       prompt += '\n'
     }
     
+    prompt += `**IMPORTANT WEB SEARCH PRIORITY**:\n`
+    prompt += `When users ask for current information, news, real-time data, or anything requiring web search:\n`
+    prompt += `1. ALWAYS use the "web_search" tool from "Web Search" server FIRST\n`
+    prompt += `2. DO NOT use Desktop Commander or other tools for web searches\n`
+    prompt += `3. The web_search tool provides real-time, multi-source results with citations\n\n`
+    
     prompt += `To use a tool, include a tool call in your response using this EXACT format:
 [TOOL_CALL]
 {
@@ -129,6 +156,12 @@ export class MCPToolsContext {
   }
 }
 [/TOOL_CALL]
+
+CRITICAL FORMATTING RULES:
+- NEVER use [TOOL_CODE] - this is WRONG and will cause errors
+- ALWAYS use [TOOL_CALL] and [/TOOL_CALL] - this is the ONLY correct format
+- ONLY use tools that are listed above in the available tools section
+- DO NOT invent tools like "TodoWrite", "Todo", or other non-existent tools
 
 IMPORTANT INSTRUCTIONS:
 - You MUST use tools when they are relevant to the user's request
@@ -212,6 +245,9 @@ Your response is INCOMPLETE and UNACCEPTABLE without proper analysis of every to
     server: string
     arguments: any
   }): Promise<string> {
+    console.log(`[MCPToolsContext] Executing tool: ${toolCall.server}:${toolCall.tool}`);
+    
+    
     const serverManager = MCPServerManager.getInstance()
     
     try {

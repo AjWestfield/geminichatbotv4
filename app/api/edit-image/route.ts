@@ -68,8 +68,25 @@ export async function POST(req: NextRequest) {
     }
 
     try {
+      // Convert Gemini file URI to a format OpenAI can access
+      let processedImageUrl = imageUrl;
+      
+      // Check if this is a Gemini file URI (but not a data URL)
+      if (!imageUrl.startsWith('data:') && (imageUrl.includes('generativelanguage.googleapis.com') || imageUrl.includes('files/'))) {
+        console.log('Detected Gemini file URI - editing not supported');
+        
+        return NextResponse.json(
+          {
+            error: "Image editing not available for Gemini file URIs",
+            details: "Gemini file URIs cannot be accessed by external services. Please upload the image again or use a generated image.",
+            suggestion: "Try uploading the image file directly instead of using a Gemini URI"
+          },
+          { status: 400 }
+        );
+      }
+
       // Edit image using GPT-Image-1
-      const result = await smartEditWithGPTImage1(imageUrl, prompt, {
+      const result = await smartEditWithGPTImage1(processedImageUrl, prompt, {
         size: actualSize as '1024x1024' | '1536x1024' | '1024x1536',
         quality: gptQuality,
         style: style as 'vivid' | 'natural',

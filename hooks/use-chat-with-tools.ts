@@ -33,7 +33,7 @@ function processMessagesWithTools(messages: Message[]): MessageWithTools[] {
       })
     }
     
-    // Strip tool calls and results from content if there are any
+    // Strip tool calls from content if there are any
     const cleanedContent = toolCalls.length > 0 
       ? stripToolCallsFromContent(msg.content)
       : msg.content
@@ -290,6 +290,7 @@ function stripToolCallsFromContent(content: string): string {
   
   return cleanedContent
 }
+
 
 export function useChatWithTools(options: UseChatOptions) {
   const [currentToolExecution, setCurrentToolExecution] = useState<{

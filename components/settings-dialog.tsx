@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label'
 import { Button } from '@/components/ui/button'
 import { Textarea } from '@/components/ui/textarea'
 import { useToast } from '@/hooks/use-toast'
-import { Settings, Image, Server, Upload, Plus, Trash2, Play, Square, FileJson, AlertCircle, CheckCircle2, Loader2, Wrench, Info } from 'lucide-react'
+import { Settings, Image, Server, Upload, Plus, Trash2, Play, Square, FileJson, AlertCircle, CheckCircle2, Loader2, Wrench, Info, Video } from 'lucide-react'
 import { useMCPServers } from '@/hooks/mcp/use-mcp-servers'
 import { MCPServerConfig } from '@/lib/mcp/mcp-client'
 import { MCPJSONParser } from '@/lib/mcp/mcp-json-parser'
@@ -19,6 +19,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert'
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible'
 import { useMCPState } from '@/hooks/use-mcp-state'
 import { Switch } from '@/components/ui/switch'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+import { Checkbox } from '@/components/ui/checkbox'
 
 interface SettingsDialogProps {
   open: boolean
@@ -30,8 +32,17 @@ interface SettingsDialogProps {
   onImageStyleChange: (style: 'vivid' | 'natural') => void
   imageSize: '1024x1024' | '1792x1024' | '1024x1792'
   onImageSizeChange: (size: '1024x1024' | '1792x1024' | '1024x1792') => void
+  // Video generation settings
+  videoModel?: 'standard' | 'pro'
+  onVideoModelChange?: (model: 'standard' | 'pro') => void
+  videoDuration?: 5 | 10
+  onVideoDurationChange?: (duration: 5 | 10) => void
+  videoAspectRatio?: '16:9' | '9:16' | '1:1'
+  onVideoAspectRatioChange?: (ratio: '16:9' | '9:16' | '1:1') => void
   // Optional initial tab
-  initialTab?: 'image' | 'mcp'
+  initialTab?: 'image' | 'mcp' | 'video'
+  autoDetectAspectRatio: boolean
+  onAutoDetectAspectRatioChange?: (checked: boolean) => void
 }
 
 export function SettingsDialog({
@@ -43,7 +54,15 @@ export function SettingsDialog({
   onImageStyleChange,
   imageSize,
   onImageSizeChange,
+  videoModel = 'standard',
+  onVideoModelChange,
+  videoDuration = 5,
+  onVideoDurationChange,
+  videoAspectRatio = '16:9',
+  onVideoAspectRatioChange,
   initialTab,
+  autoDetectAspectRatio,
+  onAutoDetectAspectRatioChange,
 }: SettingsDialogProps) {
   const { toast } = useToast()
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -57,7 +76,7 @@ export function SettingsDialog({
     args: '',
     env: ''
   })
-  
+
   const {
     servers,
     loading,
@@ -67,7 +86,7 @@ export function SettingsDialog({
     disconnectServer,
     getServerTools,
   } = useMCPServers()
-  
+
   const mcpState = useMCPState()
 
   // Update active tab when dialog opens with a specific tab
@@ -76,7 +95,7 @@ export function SettingsDialog({
       setActiveTab(initialTab)
     }
   }, [open, initialTab])
-  
+
   // Auto-connect servers when enabled by default
   useEffect(() => {
     if (mcpState.autoConnectByDefault) {
@@ -91,12 +110,12 @@ export function SettingsDialog({
 
   const handleImageQualityChange = (newQuality: 'standard' | 'hd') => {
     onImageQualityChange(newQuality)
-    
+
     const modelName = newQuality === 'hd' ? 'GPT-Image-1' : 'WaveSpeed AI'
-    const modelDescription = newQuality === 'hd' 
-      ? 'High quality generation with accurate text rendering' 
+    const modelDescription = newQuality === 'hd'
+      ? 'High quality generation with accurate text rendering'
       : 'Fast image generation with good quality'
-    
+
     toast({
       title: `Switched to ${modelName}`,
       description: modelDescription,
@@ -107,7 +126,7 @@ export function SettingsDialog({
   const handleJSONImport = async () => {
     setIsImporting(true)
     setParseError(null)
-    
+
     try {
       // Use intelligent analysis API
       const response = await fetch('/api/mcp/analyze', {
@@ -115,13 +134,13 @@ export function SettingsDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ input: jsonInput, type: 'json' })
       })
-      
+
       const result = await response.json()
-      
+
       if (!result.success || !result.correctedJSON) {
         throw new Error(result.errors?.join('. ') || 'Failed to parse configuration')
       }
-      
+
       // Show suggestions if any
       if (result.suggestions && result.suggestions.length > 0) {
         toast({
@@ -129,11 +148,11 @@ export function SettingsDialog({
           description: result.suggestions.join('. '),
         })
       }
-      
+
       // Parse the corrected JSON to get servers array
       let servers: any[] = []
       console.log('[Settings] Corrected JSON structure:', result.correctedJSON)
-      
+
       if (Array.isArray(result.correctedJSON)) {
         servers = result.correctedJSON
       } else if (result.correctedJSON.mcpServers) {
@@ -144,17 +163,17 @@ export function SettingsDialog({
         // Single server object
         servers = [result.correctedJSON]
       }
-      
+
       console.log('[Settings] Parsed servers:', servers)
-      
+
       if (servers.length === 0) {
         throw new Error('No valid servers found in configuration')
       }
-      
+
       // Add servers and auto-connect them
       let successCount = 0
       const errors: string[] = []
-      
+
       for (const server of servers) {
         try {
           // Ensure server has an ID before adding
@@ -162,16 +181,16 @@ export function SettingsDialog({
             ...server,
             id: server.id || `server-${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
           }
-          
+
           console.log('[Settings] Adding server with ID:', serverWithId)
           const addedServer = await addServer(serverWithId)
-          
+
           // Initialize and auto-connect the server after adding if it has an ID
           if (addedServer?.id) {
             // Initialize server in global state
             mcpState.initializeServer(addedServer.id, server.name)
             mcpState.setServerEnabled(addedServer.id, true)
-            
+
             // Auto-connect if enabled
             if (mcpState.autoConnectByDefault) {
               console.log('[Settings] Connecting to server:', addedServer.id)
@@ -184,7 +203,7 @@ export function SettingsDialog({
           errors.push(`${server.name}: ${error instanceof Error ? error.message : 'Unknown error'}`)
         }
       }
-      
+
       if (successCount > 0) {
         toast({
           title: "✅ Import successful",
@@ -192,7 +211,7 @@ export function SettingsDialog({
           duration: 5000,
         })
       }
-      
+
       if (errors.length > 0) {
         toast({
           title: "⚠️ Some servers failed",
@@ -201,7 +220,7 @@ export function SettingsDialog({
           duration: 8000,
         })
       }
-      
+
       // Clear input on success
       if (successCount > 0) {
         setJsonInput('')
@@ -246,13 +265,13 @@ export function SettingsDialog({
         .split('\n')
         .filter(Boolean)
         .map(arg => arg.trim())
-        
+
       const envPairs = manualServerForm.env
         .split('\n')
         .filter(Boolean)
         .map(line => line.trim().split('='))
         .filter(pair => pair.length === 2)
-        
+
       const env = envPairs.reduce((acc, [key, value]) => {
         acc[key] = value
         return acc
@@ -267,18 +286,18 @@ export function SettingsDialog({
       }
 
       const addedServer = await addServer(config)
-      
+
       // Initialize and enable in global state
       if (config.id) {
         mcpState.initializeServer(config.id, config.name)
         mcpState.setServerEnabled(config.id, true)
-        
+
         // Auto-connect if enabled
         if (mcpState.autoConnectByDefault) {
           await connectServer(config.id)
         }
       }
-      
+
       // Reset form
       setManualServerForm({
         name: '',
@@ -286,7 +305,7 @@ export function SettingsDialog({
         args: '',
         env: ''
       })
-      
+
       toast({
         title: "Server added",
         description: `${config.name} has been added successfully${mcpState.autoConnectByDefault ? ' and connecting...' : ''}`,
@@ -309,22 +328,26 @@ export function SettingsDialog({
             Settings
           </DialogTitle>
           <DialogDescription className="text-gray-400">
-            Configure image generation and MCP servers
+            Configure image generation, video generation, and MCP servers
           </DialogDescription>
         </DialogHeader>
-        
+
         <Tabs value={activeTab} onValueChange={setActiveTab} className="flex-1">
-          <TabsList className="grid w-full grid-cols-2 bg-[#1E1E1E]">
+          <TabsList className="grid w-full grid-cols-3 bg-[#1E1E1E]">
             <TabsTrigger value="image" className="data-[state=active]:bg-[#3C3C3C]">
               <Image className="w-4 h-4 mr-2" />
-              Image Generation
+              Image
+            </TabsTrigger>
+            <TabsTrigger value="video" className="data-[state=active]:bg-[#3C3C3C]">
+              <Video className="w-4 h-4 mr-2" />
+              Video
             </TabsTrigger>
             <TabsTrigger value="mcp" className="data-[state=active]:bg-[#3C3C3C]">
               <Server className="w-4 h-4 mr-2" />
-              MCP Servers
+              MCP
             </TabsTrigger>
           </TabsList>
-          
+
           <div className="mt-4 overflow-y-auto max-h-[50vh]">
             <TabsContent value="image" className="space-y-6">
               {/* Model Selection */}
@@ -395,8 +418,111 @@ export function SettingsDialog({
                   </div>
                 </RadioGroup>
               </div>
+
+              {/* Auto Aspect Ratio Detection */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-300">Auto Aspect Ratio Detection</Label>
+                <div className="flex items-center space-x-3 p-3 rounded border border-[#3A3A3A] hover:border-[#4A4A4A]">
+                  <Checkbox
+                    id="auto-aspect-ratio"
+                    checked={autoDetectAspectRatio}
+                    onCheckedChange={(checked) => onAutoDetectAspectRatioChange?.(checked as boolean)}
+                    aria-labelledby="auto-aspect-ratio-label"
+                  />
+                  <div className="flex-1">
+                    <Label htmlFor="auto-aspect-ratio" id="auto-aspect-ratio-label" className="cursor-pointer text-sm">
+                      Automatically detect optimal aspect ratio from source images
+                    </Label>
+                    <p className="text-xs text-gray-500 mt-1">
+                      When enabled, the system will analyze your image dimensions and automatically select the best matching video aspect ratio (16:9, 9:16, or 1:1).
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Default Aspect Ratio */}
+              <div className="space-y-3">
+                <Label className="text-sm font-medium text-gray-300">Default Aspect Ratio</Label>
+                <p className="text-xs text-gray-500">Used when auto-detection is disabled or fails</p>
+              </div>
             </TabsContent>
-            
+
+            <TabsContent value="video" className="space-y-6">
+              {/* Model Selection */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Video Generation Model</Label>
+                <RadioGroup value={videoModel} onValueChange={(value) => onVideoModelChange?.(value as 'standard' | 'pro')}>
+                  <div className="space-y-3">
+                    <div className="flex items-start space-x-3 p-3 rounded-lg border border-[#3A3A3A] hover:border-[#4A4A4A] transition-colors">
+                      <RadioGroupItem value="standard" id="video-standard" className="mt-1" />
+                      <div className="flex-1">
+                        <Label htmlFor="video-standard" className="cursor-pointer">
+                          Standard (Kling v1.6)
+                        </Label>
+                        <p className="text-xs text-gray-400 mt-1">
+                          720p resolution • Text-to-video & Image-to-video • Lower cost
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-start space-x-3 p-3 rounded-lg border border-[#3A3A3A] hover:border-[#4A4A4A] transition-colors">
+                      <RadioGroupItem value="pro" id="video-pro" className="mt-1" />
+                      <div className="flex-1">
+                        <Label htmlFor="video-pro" className="cursor-pointer">
+                          Pro (Kling v1.6 Pro)
+                        </Label>
+                        <p className="text-xs text-gray-400 mt-1">
+                          1080p resolution • Image-to-video focus • Highest quality
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Duration Selection */}
+              <div>
+                <Label htmlFor="video-duration" className="text-sm font-medium mb-3 block">Default Duration</Label>
+                <Select value={videoDuration.toString()} onValueChange={(value) => onVideoDurationChange?.(Number(value) as 5 | 10)}>
+                  <SelectTrigger id="video-duration" className="bg-[#1E1E1E] border-[#3A3A3A]">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="bg-[#2B2B2B] border-[#3A3A3A]">
+                    <SelectItem value="5">5 seconds</SelectItem>
+                    <SelectItem value="10">10 seconds</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Aspect Ratio */}
+              <div>
+                <Label className="text-sm font-medium mb-3 block">Default Aspect Ratio</Label>
+                <RadioGroup value={videoAspectRatio} onValueChange={(value) => onVideoAspectRatioChange?.(value as '16:9' | '9:16' | '1:1')}>
+                  <div className="space-y-2">
+                    <div className="flex items-center space-x-3 p-2 rounded border border-[#3A3A3A] hover:border-[#4A4A4A]">
+                      <RadioGroupItem value="16:9" id="video-landscape" />
+                      <Label htmlFor="video-landscape" className="cursor-pointer">16:9 (Landscape)</Label>
+                    </div>
+                    <div className="flex items-center space-x-3 p-2 rounded border border-[#3A3A3A] hover:border-[#4A4A4A]">
+                      <RadioGroupItem value="9:16" id="video-portrait" />
+                      <Label htmlFor="video-portrait" className="cursor-pointer">9:16 (Portrait)</Label>
+                    </div>
+                    <div className="flex items-center space-x-3 p-2 rounded border border-[#3A3A3A] hover:border-[#4A4A4A]">
+                      <RadioGroupItem value="1:1" id="video-square" />
+                      <Label htmlFor="video-square" className="cursor-pointer">1:1 (Square)</Label>
+                    </div>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Info Box */}
+              <Alert className="bg-blue-500/10 border-blue-500/50">
+                <Info className="h-4 w-4" />
+                <AlertDescription className="text-sm">
+                  <strong>Note:</strong> Video generation requires a Replicate API key. Videos typically take 2-8 minutes to generate depending on duration.
+                </AlertDescription>
+              </Alert>
+            </TabsContent>
+
             <TabsContent value="mcp" className="space-y-4">
               {/* Default Settings */}
               <div className="space-y-4 pb-4 border-b border-[#3A3A3A]">
@@ -417,11 +543,11 @@ export function SettingsDialog({
                   />
                 </div>
               </div>
-              
+
               {/* Import Section */}
               <div className="space-y-4">
                 <h3 className="text-sm font-medium">Import MCP Configuration</h3>
-                
+
                 <div className="space-y-2">
                   <div className="flex items-center justify-between mb-2">
                     <Label htmlFor="json-input">JSON Configuration</Label>
@@ -495,6 +621,7 @@ Supports all standard MCP configuration formats!`}
                     accept=".json"
                     onChange={handleFileImport}
                     className="hidden"
+                    aria-label="Select JSON configuration file to import"
                   />
                 </div>
               </div>
@@ -547,7 +674,7 @@ Supports all standard MCP configuration formats!`}
                       const hasError = server.status === 'error'
                       const serverState = mcpState.servers[server.id]
                       const isEnabled = serverState?.enabled ?? mcpState.autoConnectByDefault
-                      
+
                       return (
                         <Collapsible key={server.id}>
                           <Card className="bg-[#1E1E1E] border-[#3A3A3A] overflow-hidden">
@@ -626,9 +753,30 @@ Supports all standard MCP configuration formats!`}
                                   <Button
                                     size="icon"
                                     variant="ghost"
-                                    onClick={() => removeServer(server.id)}
-                                    className="h-7 w-7 text-red-400 hover:text-red-300"
-                                    disabled={isConnecting || isConnected}
+                                    onClick={async () => {
+                                      if (isConnected) {
+                                        const confirmDelete = window.confirm(
+                                          `Server "${server.name}" is currently connected. Are you sure you want to remove it?`
+                                        );
+                                        if (!confirmDelete) return;
+                                      }
+                                      try {
+                                        await removeServer(server.id);
+                                        toast({
+                                          title: "Server removed",
+                                          description: `${server.name} has been removed successfully`,
+                                        });
+                                      } catch (error) {
+                                        toast({
+                                          title: "Failed to remove server",
+                                          description: error instanceof Error ? error.message : "Unknown error",
+                                          variant: "destructive"
+                                        });
+                                      }
+                                    }}
+                                    className="h-7 w-7 text-red-400 hover:text-red-300 hover:bg-red-400/10"
+                                    disabled={isConnecting}
+                                    title={isConnecting ? "Cannot remove while connecting" : "Remove server"}
                                   >
                                     <Trash2 className="w-3 h-3" />
                                   </Button>

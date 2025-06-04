@@ -1,69 +1,54 @@
-# Infinite Update Loop - Complete Fix
+# Infinite Loop Fix Complete
 
 ## Problem
-React was throwing "Maximum update depth exceeded" error due to circular state updates between components using MCP servers.
+The chat interface was experiencing infinite update loops causing "Maximum update depth exceeded" React errors. The issue was in the useEffect hooks that monitor messages and update task statuses.
 
-## Root Causes
-1. **Multiple Initialization Points**: Both MCPToolsPopup and SettingsDialog were initializing server state
-2. **Circular Dependencies**: State updates in useEffect triggered re-renders that caused more state updates
-3. **Multiple Data Fetches**: Each component using `useMCPServers()` fetched data independently
-4. **Unstable References**: Functions like `getServerTools` were recreated on each render
+## Root Cause
+1. **Circular Dependencies**: The useEffect hooks depended on functions (`getPlan`, `getPlanByMessageId`) that were recreated whenever the `plans` state changed
+2. **State Updates in Effects**: When the effects called `updateTaskStatus`, it would update the `plans` state, causing the functions to be recreated, triggering the effect again
+3. **No Deduplication**: The effects would process the same messages/tasks multiple times
 
-## Solution Applied
+## Solution Implemented
 
-### 1. Centralized Initialization
-Created `useMCPInitialization` hook that:
-- Manages server state initialization in one place
-- Prevents duplicate initialization with version tracking
-- Only updates when server data actually changes
+### 1. Added Processing Tracking Refs
+```typescript
+// Track processed messages to prevent infinite loops
+const processedMessagesRef = useRef<Set<string>>(new Set())
+const lastProcessedTaskRef = useRef<{ planId: string; taskIndex: number } | null>(null)
+const processedPlanMessagesRef = useRef<Set<string>>(new Set())
+const processedTaskUpdatesRef = useRef<Set<string>>(new Set())
+```
 
-### 2. Single Initialization Point
-- Added initialization to `app/page.tsx` (app root)
-- Removed initialization from MCPToolsPopup
-- Simplified initialization in SettingsDialog (only auto-connect logic)
+### 2. Fixed useEffect for Task Auto-Updates
+- Added checks to ensure messages have IDs before processing
+- Track processed messages to prevent reprocessing
+- Track last processed task to prevent duplicate updates
+- Clear tracking state when plan is completed
 
-### 3. Optimized State Updates
-- Used `useMemo` for expensive calculations like tool counts
-- Removed circular dependencies in useEffect hooks
-- Made state updates more granular and controlled
+### 3. Fixed useEffect for Plan Creation
+- Check if message has already been processed for plan creation
+- Track processed task updates with unique keys
+- Prevent duplicate plan creation and task updates
 
-## Changes Made
+### 4. Stabilized Hook Functions
+In `use-agent-plan.ts`:
+- Added `plansRef` to maintain stable reference to plans
+- Modified `getPlan` and `getPlanByMessageId` to use the ref instead of state
+- Removed `plans` from dependency arrays to prevent recreation
 
-### New Files
-- `/hooks/use-mcp-initialization.ts` - Centralized initialization logic
-
-### Modified Files
-1. **`/app/page.tsx`**
-   - Added `useMCPInitialization()` at app root
-
-2. **`/components/mcp/mcp-tools-popup.tsx`**
-   - Removed initialization logic completely
-   - Added `useMemo` for tool count calculation
-   - Reordered state declarations for better performance
-
-3. **`/components/settings-dialog.tsx`**
-   - Removed server initialization logic
-   - Kept only auto-connect functionality
-
-## How It Works
-
-1. **App Starts**: `useMCPInitialization` runs once at app root
-2. **Server Data Fetched**: Hook detects changes and initializes state
-3. **Components Render**: MCPToolsPopup and SettingsDialog only read state
-4. **No Circular Updates**: State changes don't trigger initialization loops
-
-## Key Principles
-
-1. **Single Source of Truth**: One place for initialization
-2. **Read vs Write Separation**: Components that display data shouldn't initialize it
-3. **Stable Dependencies**: Use specific state properties, not entire objects
-4. **Version Tracking**: Only update when data actually changes
+## Files Modified
+1. `/components/chat-interface.tsx` - Added tracking refs and guards in useEffects
+2. `/hooks/use-agent-plan.ts` - Stabilized function references using refs
 
 ## Testing
+Run the test script to verify the fix:
+```bash
+./test-infinite-loop-fix.sh
+```
 
-The fix ensures:
-- No infinite loop errors on app load
-- Server states initialize correctly
-- Tool counts display properly
-- State syncs between components
-- No performance degradation
+The fix ensures that:
+- Each message is only processed once for plan creation
+- Each tool completion only triggers one task update
+- No infinite loops occur when updating task statuses
+- React rendering remains stable without "Maximum update depth exceeded" errors
+EOF < /dev/null

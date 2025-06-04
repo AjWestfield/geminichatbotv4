@@ -6,22 +6,34 @@ import { Card } from "@/components/ui/card"
 import { Code, ImageIcon, FileText, Eye, Monitor, Video, Music } from "lucide-react"
 import { ImageGallery } from "@/components/image-gallery"
 import { GeneratedImage } from "@/lib/image-utils"
+import { VideoGallery } from "@/components/video-gallery"
+import { GeneratedVideo } from "@/lib/video-generation-types"
 
 interface CanvasViewProps {
   generatedImages?: GeneratedImage[]
   onImagesChange?: (images: GeneratedImage[]) => void
+  generatedVideos?: GeneratedVideo[]
+  onVideosChange?: (videos: GeneratedVideo[]) => void
+  onAnimateImage?: (image: GeneratedImage) => void
+  onCancelVideo?: (videoId: string) => void
   activeTab?: string
   onTabChange?: (tab: string) => void
+  autoOpenEditImageId?: string | null
 }
 
-export default function CanvasView({ 
-  generatedImages = [], 
+export default function CanvasView({
+  generatedImages = [],
   onImagesChange,
+  generatedVideos = [],
+  onVideosChange,
+  onAnimateImage,
+  onCancelVideo,
   activeTab: controlledActiveTab,
-  onTabChange 
+  onTabChange,
+  autoOpenEditImageId
 }: CanvasViewProps) {
   const [internalActiveTab, setInternalActiveTab] = useState("preview")
-  
+
   // Use controlled tab if provided, otherwise use internal state
   const activeTab = controlledActiveTab || internalActiveTab
   const setActiveTab = onTabChange || setInternalActiveTab
@@ -137,16 +149,17 @@ greeting();`}</code>
           </TabsContent>
 
           <TabsContent value="video" className="h-full mt-0">
-            <Card className="w-full h-full flex items-center justify-center bg-[#1A1A1A] border-[#333333]">
-              <div className="text-center p-8">
-                <div className="mx-auto h-16 w-16 rounded-2xl bg-[#2B2B2B] flex items-center justify-center mb-6">
-                  <Video className="h-8 w-8 text-white" />
-                </div>
-                <h3 className="text-xl font-semibold text-white mb-2">Video Generation</h3>
-                <p className="text-[#B0B0B0] max-w-md">
-                  AI-generated videos will appear here. Ask the assistant to create a video for you.
-                </p>
-              </div>
+            <Card className="w-full h-full bg-[#1A1A1A] border-[#333333] overflow-hidden">
+              <VideoGallery
+                videos={generatedVideos}
+                onVideoDelete={(videoId) => {
+                  if (onVideosChange) {
+                    const updatedVideos = generatedVideos.filter(v => v.id !== videoId)
+                    onVideosChange(updatedVideos)
+                  }
+                }}
+                onCancelVideo={onCancelVideo}
+              />
             </Card>
           </TabsContent>
 
@@ -167,9 +180,11 @@ greeting();`}</code>
 
           <TabsContent value="images" className="h-full mt-0">
             <Card className="w-full h-full bg-[#1A1A1A] border-[#333333] overflow-hidden">
-              <ImageGallery 
-                images={generatedImages} 
+              <ImageGallery
+                images={generatedImages}
                 onImagesChange={onImagesChange}
+                onAnimateImage={onAnimateImage}
+                autoOpenEditId={autoOpenEditImageId}
               />
             </Card>
           </TabsContent>

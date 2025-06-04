@@ -24,10 +24,12 @@ export async function POST(req: NextRequest) {
     const supportedTypes = [
       // Images
       "image/jpeg",
+      "image/jpg", 
       "image/png",
       "image/webp",
       "image/heic",
       "image/heif",
+      "image/avif",
       // Audio
       "audio/mpeg",
       "audio/mp3",
@@ -50,7 +52,7 @@ export async function POST(req: NextRequest) {
 
     if (!supportedTypes.includes(file.type)) {
       return NextResponse.json(
-        { error: "Unsupported file type. Please upload an image (JPEG, PNG, WebP), audio file (MP3, WAV, etc.), or video file (MP4, MOV, etc.)" },
+        { error: "Unsupported file type. Please upload an image (JPEG, PNG, WebP, HEIC, HEIF), audio file (MP3, WAV, etc.), or video file (MP4, MOV, etc.)" },
         { status: 400 }
       )
     }

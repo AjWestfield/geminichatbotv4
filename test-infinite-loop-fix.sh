@@ -1,55 +1,43 @@
-#!/bin/bash
+#\!/bin/bash
 
-echo "Testing Infinite Update Loop Fix"
-echo "================================"
-echo ""
+echo "Testing infinite loop fix in agent plan implementation..."
 
-# Kill any existing processes on port 3000
-echo "1. Stopping existing dev server..."
-lsof -ti:3000 | xargs kill -9 2>/dev/null || true
-sleep 2
+# Kill any existing dev server
+echo "Stopping any existing dev server..."
+pkill -f "next dev" || true
 
 # Clear Next.js cache
-echo "2. Clearing Next.js cache..."
+echo "Clearing Next.js cache..."
 rm -rf .next
 
 # Start the dev server
-echo "3. Starting development server..."
-cd /Users/andersonwestfield/Desktop/geminichatbotv3
+echo "Starting development server..."
 npm run dev &
-DEV_PID=$!
+DEV_PID=$\!
 
 # Wait for server to start
-echo "4. Waiting for server to start..."
-sleep 8
+echo "Waiting for server to start..."
+sleep 10
 
-# Open the browser
-echo "5. Opening browser at http://localhost:3000"
-open http://localhost:3000
+# Check if server is running
+if \! curl -s http://localhost:3000 > /dev/null; then
+    echo "❌ Failed to start development server"
+    kill $DEV_PID 2>/dev/null || true
+    exit 1
+fi
 
-echo ""
-echo "Test Instructions:"
-echo "=================="
-echo ""
-echo "1. CHECK CONSOLE:"
-echo "   - Open browser console (Cmd+Option+J)"
-echo "   - Verify NO 'Maximum update depth exceeded' errors"
-echo "   - Check terminal for clean server logs"
-echo ""
-echo "2. TEST MCP FUNCTIONALITY:"
-echo "   - Click the tools icon in chat input"
-echo "   - Verify popup opens without errors"
-echo "   - Toggle servers on/off"
-echo "   - Click 'Manage Servers'"
-echo "   - Verify settings dialog opens"
-echo ""
-echo "3. EXPECTED RESULTS:"
-echo "   ✅ No infinite loop errors"
-echo "   ✅ App loads successfully"
-echo "   ✅ MCP servers connect normally"
-echo "   ✅ UI interactions work smoothly"
-echo ""
-echo "Press Ctrl+C to stop the server when done testing."
+echo "✅ Development server started successfully"
 
-# Wait for user to stop
-wait $DEV_PID
+# Monitor console for infinite loop indicators
+echo "Monitoring for infinite loop indicators for 30 seconds..."
+echo "If you see repeated 'Maximum update depth exceeded' errors, the fix didn't work."
+echo "If the server runs smoothly without errors, the fix is successful."
+
+# Let it run for 30 seconds to check for infinite loops
+sleep 30
+
+echo "Test complete. Check the console output above for any errors."
+echo "Stopping development server..."
+kill $DEV_PID 2>/dev/null || true
+
+echo "Done\!"

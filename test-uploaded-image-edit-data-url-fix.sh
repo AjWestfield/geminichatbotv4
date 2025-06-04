@@ -1,0 +1,28 @@
+#!/bin/bash
+
+echo "Testing Uploaded Image Edit Fix with Data URL Support"
+echo "===================================================="
+echo ""
+echo "This test verifies that uploaded images (stored as data URLs) can now be edited"
+echo "using GPT-Image-1's inpainting feature."
+echo ""
+echo "Test Steps:"
+echo "1. Start the development server"
+echo "2. Upload an image file"
+echo "3. Click 'Edit' on the uploaded image"
+echo "4. Enter an edit prompt (e.g., 'Make the sky purple')"
+echo "5. Verify that the image is edited (not regenerated)"
+echo ""
+echo "Expected Behavior:"
+echo "- The console should show 'Processing data URL for editing...'"
+echo "- The image should be edited with your changes applied"
+echo "- The edited image should appear in the gallery"
+echo ""
+echo "Previous Behavior (before fix):"
+echo "- Would fall back to generating a new image instead of editing"
+echo "- Data URLs could not be processed by the fetch() function"
+echo ""
+echo "Starting development server..."
+echo ""
+
+npm run dev

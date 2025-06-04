@@ -45,13 +45,23 @@ export async function POST(req: NextRequest) {
     // Check file size (Whisper has a 25MB limit)
     const MAX_FILE_SIZE = 25 * 1024 * 1024; // 25MB
     if (file.size > MAX_FILE_SIZE) {
-      return NextResponse.json(
+      console.error(`File size exceeds limit: ${(file.size / 1024 / 1024).toFixed(1)}MB > 25MB`)
+      const response = NextResponse.json(
         { 
           error: "File too large",
           details: `Maximum file size is 25MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`
         },
         { status: 400 }
       )
+      console.log('Sending file size error response:', { 
+        status: 400, 
+        headers: Object.fromEntries(response.headers.entries()),
+        body: { 
+          error: "File too large",
+          details: `Maximum file size is 25MB. Your file is ${(file.size / 1024 / 1024).toFixed(1)}MB`
+        }
+      })
+      return response
     }
 
     try {

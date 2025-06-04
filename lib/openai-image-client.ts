@@ -214,16 +214,34 @@ export async function editImageWithGPTImage1(
 
   try {
     console.log('Editing image with GPT-Image-1...');
-    console.log('Original image:', imageUrl);
+    console.log('Original image:', imageUrl.substring(0, 50) + '...');
     console.log('Edit prompt:', prompt);
 
-    // Download the image
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+    let imageBuffer: Buffer;
+
+    // Handle different URL types
+    if (imageUrl.startsWith('blob:')) {
+      // Blob URLs cannot be accessed on the server side
+      throw new Error('Blob URLs cannot be processed on the server. Please ensure images are converted to data URLs before sending to the API.');
+    } else if (imageUrl.startsWith('data:')) {
+      console.log('Processing data URL for editing...');
+      // Extract base64 data from data URL
+      const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (!base64Match) {
+        throw new Error('Invalid data URL format');
+      }
+      const base64Data = base64Match[1];
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      // Download the image from HTTP URL
+      console.log('Downloading image from URL...');
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+      }
+      const imageArrayBuffer = await imageResponse.arrayBuffer();
+      imageBuffer = Buffer.from(imageArrayBuffer);
     }
-    const imageArrayBuffer = await imageResponse.arrayBuffer();
-    const imageBuffer = Buffer.from(imageArrayBuffer);
 
     // Convert buffer to File using OpenAI's toFile helper
     const imageFile = await toFile(imageBuffer, 'image.png', { type: 'image/png' });
@@ -289,10 +307,24 @@ export async function editImageWithGPTImage1(
 
       const openai = new OpenAI({ apiKey });
 
-      // Re-download the image for the fallback attempt
-      const imageResponse = await fetch(imageUrl);
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-      const imageFile = await toFile(imageBuffer, 'image.png', { type: 'image/png' });
+      // Re-process the image for the fallback attempt
+      let fallbackImageBuffer: Buffer;
+      if (imageUrl.startsWith('blob:')) {
+        throw new Error('Blob URLs cannot be processed on the server. Please ensure images are converted to data URLs before sending to the API.');
+      } else if (imageUrl.startsWith('data:')) {
+        console.log('Processing data URL for fallback editing...');
+        const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+        if (!base64Match) {
+          throw new Error('Invalid data URL format');
+        }
+        const base64Data = base64Match[1];
+        fallbackImageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        console.log('Re-downloading image for fallback...');
+        const imageResponse = await fetch(imageUrl);
+        fallbackImageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      }
+      const imageFile = await toFile(fallbackImageBuffer, 'image.png', { type: 'image/png' });
 
       const fallbackParams: any = {
         model: 'dall-e-2',
@@ -364,13 +396,31 @@ export async function createImageVariationGPT1(
   try {
     console.log('Creating image variation with GPT-Image-1...');
 
-    // Download the image
-    const imageResponse = await fetch(imageUrl);
-    if (!imageResponse.ok) {
-      throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+    let imageBuffer: Buffer;
+
+    // Handle different URL types
+    if (imageUrl.startsWith('blob:')) {
+      // Blob URLs cannot be accessed on the server side
+      throw new Error('Blob URLs cannot be processed on the server. Please ensure images are converted to data URLs before sending to the API.');
+    } else if (imageUrl.startsWith('data:')) {
+      console.log('Processing data URL for variation...');
+      // Extract base64 data from data URL
+      const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+      if (!base64Match) {
+        throw new Error('Invalid data URL format');
+      }
+      const base64Data = base64Match[1];
+      imageBuffer = Buffer.from(base64Data, 'base64');
+    } else {
+      // Download the image from HTTP URL
+      console.log('Downloading image from URL...');
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        throw new Error(`Failed to fetch image: ${imageResponse.status}`);
+      }
+      const imageArrayBuffer = await imageResponse.arrayBuffer();
+      imageBuffer = Buffer.from(imageArrayBuffer);
     }
-    const imageArrayBuffer = await imageResponse.arrayBuffer();
-    const imageBuffer = Buffer.from(imageArrayBuffer);
 
     // Convert buffer to File using OpenAI's toFile helper
     const imageFile = await toFile(imageBuffer, 'image.png', { type: 'image/png' });
@@ -396,10 +446,24 @@ export async function createImageVariationGPT1(
     if (error.message?.includes('invalid_model') || error.message?.includes('model_not_found')) {
       console.log('GPT-Image-1 not available, falling back to dall-e-2...');
 
-      // Re-download the image for the fallback
-      const imageResponse = await fetch(imageUrl);
-      const imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
-      const imageFile = await toFile(imageBuffer, 'image.png', { type: 'image/png' });
+      // Re-process the image for the fallback
+      let fallbackImageBuffer: Buffer;
+      if (imageUrl.startsWith('blob:')) {
+        throw new Error('Blob URLs cannot be processed on the server. Please ensure images are converted to data URLs before sending to the API.');
+      } else if (imageUrl.startsWith('data:')) {
+        console.log('Processing data URL for fallback variation...');
+        const base64Match = imageUrl.match(/^data:image\/[^;]+;base64,(.+)$/);
+        if (!base64Match) {
+          throw new Error('Invalid data URL format');
+        }
+        const base64Data = base64Match[1];
+        fallbackImageBuffer = Buffer.from(base64Data, 'base64');
+      } else {
+        console.log('Re-downloading image for fallback...');
+        const imageResponse = await fetch(imageUrl);
+        fallbackImageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      }
+      const imageFile = await toFile(fallbackImageBuffer, 'image.png', { type: 'image/png' });
 
       const fallbackResponse = await openai.images.createVariation({
         model: 'dall-e-2' as any,

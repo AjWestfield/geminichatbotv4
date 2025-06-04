@@ -17,6 +17,9 @@ import {
   Settings,
   UserCircle,
   Video,
+  Search,
+  Trash2,
+  Edit3,
 } from "lucide-react"
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import Link from "next/link"
@@ -31,6 +34,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Separator } from "@/components/ui/separator"
+import { useChatPersistence } from "@/hooks/use-chat-persistence"
+import { format, isToday, isYesterday, isThisWeek, isThisMonth } from "date-fns"
+import { Input } from "@/components/ui/input"
+import { formatChatTitleWithTime } from "@/lib/chat-naming"
 
 const sidebarVariants = {
   open: {
@@ -76,23 +83,83 @@ const staggerVariants = {
   },
 }
 
-// Mock data for project and chat history
-const projectHistory = [
-  { id: 1, name: "Landing Page", date: "2 hours ago" },
-  { id: 2, name: "Dashboard UI", date: "Yesterday" },
-  { id: 3, name: "Authentication Flow", date: "3 days ago" },
-  { id: 4, name: "Settings Panel", date: "1 week ago" },
-]
+interface SidebarProps {
+  currentChatId?: string | null
+  onChatSelect?: (chatId: string) => void
+  onNewChat?: () => void
+}
 
-const chatHistory = [
-  { id: 1, name: "AI Chat Interface", date: "Just now" },
-  { id: 2, name: "Canvas Implementation", date: "1 hour ago" },
-  { id: 3, name: "Responsive Design", date: "Yesterday" },
-]
-
-export function AppSidebar() {
+export function AppSidebar({ currentChatId, onChatSelect, onNewChat }: SidebarProps) {
   const [isCollapsed, setIsCollapsed] = useState(true)
+  const [searchQuery, setSearchQuery] = useState("")
+  const [editingChatId, setEditingChatId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState("")
   const pathname = usePathname()
+  
+  const {
+    chats,
+    deleteChat,
+    updateChatTitle,
+    searchChats,
+    refreshChats,
+  } = useChatPersistence(currentChatId || undefined)
+
+  // Group chats by time period
+  const groupChatsByPeriod = () => {
+    const groups: Record<string, typeof chats> = {
+      Today: [],
+      Yesterday: [],
+      'This Week': [],
+      'This Month': [],
+      Older: [],
+    }
+
+    chats.forEach(chat => {
+      const date = new Date(chat.updated_at || chat.created_at)
+      
+      if (isToday(date)) {
+        groups.Today.push(chat)
+      } else if (isYesterday(date)) {
+        groups.Yesterday.push(chat)
+      } else if (isThisWeek(date)) {
+        groups['This Week'].push(chat)
+      } else if (isThisMonth(date)) {
+        groups['This Month'].push(chat)
+      } else {
+        groups.Older.push(chat)
+      }
+    })
+
+    return Object.entries(groups).filter(([_, chats]) => chats.length > 0)
+  }
+
+  const handleEditChat = (chatId: string, currentTitle: string) => {
+    setEditingChatId(chatId)
+    setEditingTitle(currentTitle)
+  }
+
+  const handleSaveEdit = async () => {
+    if (editingChatId && editingTitle.trim()) {
+      await updateChatTitle(editingChatId, editingTitle.trim())
+      setEditingChatId(null)
+      setEditingTitle("")
+    }
+  }
+
+  const handleDeleteChat = async (chatId: string) => {
+    if (confirm('Are you sure you want to delete this chat?')) {
+      await deleteChat(chatId)
+    }
+  }
+
+  const handleSearch = async (query: string) => {
+    setSearchQuery(query)
+    if (query.trim()) {
+      await searchChats(query)
+    } else {
+      await refreshChats()
+    }
+  }
 
   return (
     <motion.div
@@ -148,63 +215,148 @@ export function AppSidebar() {
               <div className="flex grow flex-col gap-4">
                 <ScrollArea className="h-16 grow p-2">
                   <div className={cn("flex w-full flex-col gap-1")}>
-                    {/* Project History Section */}
-                    <div className="mt-2 mb-1 px-2">
-                      <motion.div variants={variants} className="flex items-center">
-                        {!isCollapsed && <p className="text-xs font-semibold text-muted-foreground">PROJECT HISTORY</p>}
-                      </motion.div>
-                    </div>
+                    {/* New Chat Button */}
+                    {!isCollapsed && (
+                      <div className="mb-4 px-2">
+                        <Button
+                          onClick={onNewChat}
+                          className="w-full justify-start gap-2"
+                          variant="outline"
+                          size="sm"
+                        >
+                          <Plus className="h-4 w-4" />
+                          New Chat
+                        </Button>
+                      </div>
+                    )}
 
-                    {projectHistory.map((project) => (
-                      <Link
-                        key={project.id}
-                        href={`/project/${project.id}`}
-                        className={cn(
-                          "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-muted hover:text-primary",
-                          pathname?.includes(`/project/${project.id}`) && "bg-muted text-blue-600",
-                        )}
-                      >
-                        <History className="h-4 w-4" />
-                        <motion.li variants={variants}>
-                          {!isCollapsed && (
-                            <div className="ml-2 flex flex-col">
-                              <p className="text-sm font-medium">{project.name}</p>
-                              <p className="text-xs text-muted-foreground">{project.date}</p>
-                            </div>
-                          )}
-                        </motion.li>
-                      </Link>
-                    ))}
+                    {/* Search */}
+                    {!isCollapsed && (
+                      <div className="mb-4 px-2">
+                        <Input
+                          type="search"
+                          placeholder="Search chats..."
+                          value={searchQuery}
+                          onChange={(e) => handleSearch(e.target.value)}
+                          className="h-8 text-sm"
+                        />
+                      </div>
+                    )}
 
-                    <Separator className="my-2" />
+                    {/* Clear Chat History Button */}
+                    {!isCollapsed && chats.length > 0 && (
+                      <div className="mb-4 px-2">
+                        <Button
+                          onClick={async () => {
+                            if (confirm('Are you sure you want to clear all chat history? This cannot be undone.')) {
+                              for (const chat of chats) {
+                                await deleteChat(chat.id)
+                              }
+                              onNewChat?.()
+                            }
+                          }}
+                          className="w-full justify-start gap-2 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          variant="ghost"
+                          size="sm"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                          Clear Chat History
+                        </Button>
+                      </div>
+                    )}
 
                     {/* Chat History Section */}
-                    <div className="mt-2 mb-1 px-2">
-                      <motion.div variants={variants} className="flex items-center">
-                        {!isCollapsed && <p className="text-xs font-semibold text-muted-foreground">CHAT HISTORY</p>}
-                      </motion.div>
-                    </div>
+                    {groupChatsByPeriod().map(([period, periodChats]) => (
+                      <div key={period} className="mb-4">
+                        <div className="mb-1 px-2">
+                          <motion.div variants={variants} className="flex items-center">
+                            {!isCollapsed && (
+                              <p className="text-xs font-semibold text-muted-foreground">{period.toUpperCase()}</p>
+                            )}
+                          </motion.div>
+                        </div>
 
-                    {chatHistory.map((chat) => (
-                      <Link
-                        key={chat.id}
-                        href={`/chat/${chat.id}`}
-                        className={cn(
-                          "flex h-8 w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-muted hover:text-primary",
-                          pathname?.includes(`/chat/${chat.id}`) && "bg-muted text-blue-600",
-                        )}
-                      >
-                        <MessageSquare className="h-4 w-4" />
-                        <motion.li variants={variants}>
-                          {!isCollapsed && (
-                            <div className="ml-2 flex flex-col">
-                              <p className="text-sm font-medium">{chat.name}</p>
-                              <p className="text-xs text-muted-foreground">{chat.date}</p>
-                            </div>
-                          )}
-                        </motion.li>
-                      </Link>
+                        {periodChats.map((chat) => (
+                          <div
+                            key={chat.id}
+                            className={cn(
+                              "group flex h-auto w-full flex-row items-center rounded-md px-2 py-1.5 transition hover:bg-muted hover:text-primary cursor-pointer",
+                              currentChatId === chat.id && "bg-muted text-blue-600",
+                            )}
+                            onClick={() => onChatSelect?.(chat.id)}
+                          >
+                            <MessageSquare className="h-4 w-4 flex-shrink-0" />
+                            <motion.div variants={variants} className="flex-1 min-w-0">
+                              {!isCollapsed && (
+                                <>
+                                  {editingChatId === chat.id ? (
+                                    <div className="ml-2 flex items-center gap-1">
+                                      <Input
+                                        value={editingTitle}
+                                        onChange={(e) => setEditingTitle(e.target.value)}
+                                        onBlur={handleSaveEdit}
+                                        onKeyDown={(e) => {
+                                          if (e.key === 'Enter') handleSaveEdit()
+                                          if (e.key === 'Escape') {
+                                            setEditingChatId(null)
+                                            setEditingTitle("")
+                                          }
+                                        }}
+                                        className="h-6 text-sm"
+                                        autoFocus
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                    </div>
+                                  ) : (
+                                    <div className="ml-2 flex items-center justify-between">
+                                      <div className="flex-1 min-w-0">
+                                        <p className="text-sm font-medium truncate">
+                                          {chat.title}
+                                        </p>
+                                        <p className="text-xs text-muted-foreground">
+                                          {chat.message_count} messages • {format(new Date(chat.created_at), isToday(new Date(chat.created_at)) ? 'HH:mm' : isYesterday(new Date(chat.created_at)) ? "'Yesterday'" : isThisWeek(new Date(chat.created_at)) ? 'EEEE' : 'MMM d')}
+                                        </p>
+                                      </div>
+                                      <div className="opacity-0 group-hover:opacity-100 flex gap-1">
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleEditChat(chat.id, chat.title)
+                                          }}
+                                        >
+                                          <Edit3 className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="h-6 w-6 hover:text-red-500"
+                                          onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleDeleteChat(chat.id)
+                                          }}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </div>
+                                  )}
+                                </>
+                              )}
+                            </motion.div>
+                          </div>
+                        ))}
+                      </div>
                     ))}
+
+                    {chats.length === 0 && !isCollapsed && (
+                      <div className="px-2 py-4 text-center">
+                        <p className="text-sm text-muted-foreground">No chats yet</p>
+                        <p className="text-xs text-muted-foreground mt-1">Start a new conversation!</p>
+                      </div>
+                    )}
 
                     <Separator className="my-2" />
 

@@ -14,7 +14,6 @@ export const metadata: Metadata = {
   generator: 'v0.dev',
   keywords: ['AI chatbot', 'image generation', 'image editing', 'Gemini AI', 'GPT-Image-1', 'WaveSpeed'],
   authors: [{ name: 'AjWestfield' }],
-  viewport: 'width=device-width, initial-scale=1',
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
@@ -39,6 +38,11 @@ export const metadata: Metadata = {
     index: true,
     follow: true,
   },
+}
+
+export const viewport = {
+  width: 'device-width',
+  initialScale: 1,
 }
 
 export default function RootLayout({

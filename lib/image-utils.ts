@@ -1,5 +1,6 @@
 /**
  * Image generation and management utilities
+ * Client-side only utilities - server-side functions moved to server-image-utils.ts
  */
 
 export interface GeneratedImage {
@@ -17,13 +18,22 @@ export interface GeneratedImage {
   isGenerating?: boolean // Track if image is currently being generated
   generationStartTime?: Date // When generation started
   urlAvailableTime?: Date // When URL became available for reveal animation
+  isUploaded?: boolean // Track if this is an uploaded image
+  geminiUri?: string // Store Gemini URI for uploaded images
 }
 
 /**
- * Generate a unique ID for an image
+ * Generate a unique ID for an image with high precision
  */
 export function generateImageId(): string {
-  return `img_${Date.now()}_${Math.random().toString(36).substring(2, 11)}`
+  // Use high precision timestamp and multiple random components to ensure uniqueness
+  const timestamp = Date.now()
+  const random1 = Math.random().toString(36).substring(2, 11)
+  const random2 = Math.random().toString(36).substring(2, 6)
+  const performance = typeof window !== 'undefined' && window.performance 
+    ? Math.floor(window.performance.now() * 1000).toString(36)
+    : Math.random().toString(36).substring(2, 6)
+  return `img_${timestamp}_${random1}${random2}${performance}`
 }
 
 /**
@@ -34,14 +44,14 @@ export async function downloadImage(url: string, filename: string): Promise<void
     const response = await fetch(url)
     const blob = await response.blob()
     const downloadUrl = URL.createObjectURL(blob)
-    
+
     const a = document.createElement('a')
     a.href = downloadUrl
     a.download = filename
     document.body.appendChild(a)
     a.click()
     document.body.removeChild(a)
-    
+
     // Clean up
     setTimeout(() => URL.revokeObjectURL(downloadUrl), 100)
   } catch (error) {
@@ -57,7 +67,7 @@ export async function imageUrlToBase64(url: string): Promise<string> {
   try {
     const response = await fetch(url)
     const blob = await response.blob()
-    
+
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onloadend = () => resolve(reader.result as string)
@@ -118,28 +128,33 @@ export function saveGeneratedImages(images: GeneratedImage[]): void {
   try {
     // Only save completed images (not generating ones)
     const completedImages = images.filter(img => !img.isGenerating && img.url)
-    
+
     if (completedImages.length === 0) {
       return
     }
-    
+
     // Start with most recent 30 images
     let imagesToSave = completedImages.slice(-30)
-    
+
     // Convert dates to strings and minimize data
     const prepareForStorage = (imgs: GeneratedImage[]) => imgs.map(img => ({
       id: img.id,
-      url: img.url.substring(0, 200), // Limit URL length
+      // NEVER store data URLs in localStorage - they're too large
+      // Only store external URLs (blob URLs, CDN URLs, etc.)
+      url: img.url.startsWith('data:') ? '[DATA_URL_REMOVED]' : img.url.substring(0, 500),
       prompt: img.prompt.substring(0, 200), // Limit prompt length
       timestamp: img.timestamp.toISOString(),
       quality: img.quality,
       model: img.model,
-      // Don't save optional fields to save space
+      // Save essential fields for edited images
+      originalImageId: img.originalImageId,
+      isUploaded: img.isUploaded,
+      geminiUri: img.geminiUri,
     }))
-    
+
     let serialized = prepareForStorage(imagesToSave)
     let dataSize = calculateDataSize(serialized)
-    
+
     // If data is too large, reduce number of images
     const maxSize = 4 * 1024 * 1024 // 4MB limit (conservative)
     while (dataSize > maxSize && imagesToSave.length > 5) {
@@ -147,19 +162,19 @@ export function saveGeneratedImages(images: GeneratedImage[]): void {
       serialized = prepareForStorage(imagesToSave)
       dataSize = calculateDataSize(serialized)
     }
-    
+
     try {
       localStorage.setItem('generatedImages', JSON.stringify(serialized))
       console.log(`Saved ${imagesToSave.length} images (${(dataSize / 1024).toFixed(1)}KB)`)
     } catch (quotaError: any) {
       console.warn('localStorage quota exceeded, clearing old data...')
-      
+
       // Clear old data and try again with only 10 most recent
       clearOldImages()
-      
+
       const minimalImages = completedImages.slice(-10)
       const minimalSerialized = prepareForStorage(minimalImages)
-      
+
       try {
         localStorage.setItem('generatedImages', JSON.stringify(minimalSerialized))
         console.log(`Saved ${minimalImages.length} most recent images after clearing storage`)
@@ -181,22 +196,24 @@ export function loadGeneratedImages(): GeneratedImage[] {
   try {
     const stored = localStorage.getItem('generatedImages')
     if (!stored) return []
-    
+
     // Parse and convert date strings back to Date objects
     const parsed = JSON.parse(stored)
-    return parsed.map((img: any) => ({
-      id: img.id || generateImageId(),
-      url: img.url || '',
-      prompt: img.prompt || '',
-      revisedPrompt: img.revisedPrompt,
-      timestamp: new Date(img.timestamp || Date.now()),
-      quality: img.quality || 'standard',
-      style: img.style,
-      size: img.size,
-      model: img.model || 'unknown',
-      originalImageId: img.originalImageId,
-      editStrength: img.editStrength,
-      generationStartTime: img.generationStartTime ? new Date(img.generationStartTime) : undefined,
+    return parsed
+      .filter((img: any) => img.url !== '[DATA_URL_REMOVED]') // Skip images with removed URLs
+      .map((img: any) => ({
+        id: img.id || generateImageId(),
+        url: img.url || '',
+        prompt: img.prompt || '',
+        revisedPrompt: img.revisedPrompt,
+        timestamp: new Date(img.timestamp || Date.now()),
+        quality: img.quality || 'standard',
+        style: img.style,
+        size: img.size,
+        model: img.model || 'unknown',
+        originalImageId: img.originalImageId,
+        editStrength: img.editStrength,
+        generationStartTime: img.generationStartTime ? new Date(img.generationStartTime) : undefined,
       isGenerating: false // Loaded images are never generating
     }))
   } catch (error) {
@@ -216,7 +233,7 @@ export function loadGeneratedImages(): GeneratedImage[] {
  */
 export function isImageGenerationRequest(message: string): boolean {
   const lowerMessage = message.toLowerCase()
-  
+
   // Check for common patterns
   const patterns = [
     /generate\s+(a|an|the)?\s*\w*\s*(image|picture|illustration|artwork|art|photo|drawing)/i,
@@ -229,7 +246,7 @@ export function isImageGenerationRequest(message: string): boolean {
     /visualize/i,
     /generate:|create:|draw:|make:/i
   ]
-  
+
   // Check if any pattern matches
   return patterns.some(pattern => pattern.test(lowerMessage))
 }
@@ -244,23 +261,23 @@ export function extractImagePrompt(message: string): string {
     /^(image|picture|illustration|artwork|photo|drawing)\s+of\s*/i,
     /^visualize\s*/i,
   ]
-  
+
   let prompt = message
   for (const pattern of patterns) {
     prompt = prompt.replace(pattern, '')
   }
-  
+
   // Remove trailing "image", "picture", etc. if they appear at the start
   prompt = prompt.replace(/^(image|picture|illustration|artwork|photo|drawing)\s*/i, '')
-  
+
   // Clean up any remaining artifacts
   prompt = prompt.replace(/\s+/g, ' ').trim()
-  
+
   // If the prompt is empty or too short, use the original message
   if (prompt.length < 3) {
     prompt = message.replace(/^(generate|create|make|draw)\s+(a|an|the)?\s*/i, '').trim()
   }
-  
+
   return prompt
 }
 
@@ -274,7 +291,7 @@ export function formatImageTimestamp(date: Date): string {
   const minutes = Math.floor(seconds / 60)
   const hours = Math.floor(minutes / 60)
   const days = Math.floor(hours / 24)
-  
+
   if (days > 0) {
     return `${days} day${days > 1 ? 's' : ''} ago`
   }
@@ -311,4 +328,198 @@ export function getStorageInfo(): { used: number; images: number } {
   } catch {
     return { used: 0, images: 0 }
   }
+}
+
+/**
+ * Detects the aspect ratio of an image and maps it to the closest supported video aspect ratio
+ * @param imageUrl The URL of the image to analyze
+ * @returns Promise<VideoAspectRatio> The closest matching video aspect ratio
+ */
+export async function detectImageAspectRatio(imageUrl: string): Promise<"16:9" | "9:16" | "1:1"> {
+  return new Promise((resolve, reject) => {
+    // For Gemini URIs (HEIC and other formats), default to 16:9
+    if (imageUrl.includes('generativelanguage.googleapis.com')) {
+      console.log('Detected Gemini URI (likely HEIC), defaulting to 16:9')
+      resolve("16:9")
+      return
+    }
+
+    const img = new Image()
+
+    img.onload = () => {
+      const width = img.naturalWidth
+      const height = img.naturalHeight
+      const ratio = width / height
+
+      console.log(`Image dimensions: ${width}x${height}, ratio: ${ratio}`)
+
+      // Define aspect ratio thresholds
+      const LANDSCAPE_THRESHOLD = 1.5  // 16:9 ≈ 1.78
+      const SQUARE_THRESHOLD_LOW = 0.8
+      const SQUARE_THRESHOLD_HIGH = 1.2
+      const PORTRAIT_THRESHOLD = 0.7   // 9:16 ≈ 0.56
+
+      let detectedRatio: "16:9" | "9:16" | "1:1"
+
+      if (ratio >= LANDSCAPE_THRESHOLD) {
+        // Wide/landscape image -> 16:9
+        detectedRatio = "16:9"
+      } else if (ratio >= SQUARE_THRESHOLD_LOW && ratio <= SQUARE_THRESHOLD_HIGH) {
+        // Square-ish image -> 1:1
+        detectedRatio = "1:1"
+      } else if (ratio <= PORTRAIT_THRESHOLD) {
+        // Tall/portrait image -> 9:16
+        detectedRatio = "9:16"
+      } else {
+        // Default fallback for ambiguous ratios
+        detectedRatio = ratio > 1 ? "16:9" : "9:16"
+      }
+
+      console.log(`Auto-detected aspect ratio: ${detectedRatio} for image ratio ${ratio}`)
+      resolve(detectedRatio)
+    }
+
+    img.onerror = () => {
+      console.warn('Failed to load image for aspect ratio detection, defaulting to 16:9')
+      // Default to 16:9 instead of rejecting
+      resolve("16:9")
+    }
+
+    // Handle CORS issues
+    img.crossOrigin = 'anonymous'
+    img.src = imageUrl
+  })
+}
+
+/**
+ * Gets a human-readable description of why an aspect ratio was auto-selected
+ * @param imageUrl The source image URL
+ * @param detectedRatio The detected aspect ratio
+ * @returns Promise<string> Description of the detection logic
+ */
+export async function getAspectRatioDetectionReason(
+  imageUrl: string,
+  detectedRatio: "16:9" | "9:16" | "1:1"
+): Promise<string> {
+  try {
+    // For Gemini URIs, return a special message
+    if (imageUrl.includes('generativelanguage.googleapis.com')) {
+      return `HEIC/HEIF image → ${detectedRatio} (default for Apple formats)`
+    }
+
+    const img = new Image()
+    await new Promise((resolve, reject) => {
+      img.onload = resolve
+      img.onerror = () => {
+        console.warn('Image failed to load in getAspectRatioDetectionReason, using fallback')
+        resolve(null) // Resolve instead of reject
+      }
+      img.crossOrigin = 'anonymous'
+      img.src = imageUrl
+    })
+
+    const width = img.naturalWidth
+    const height = img.naturalHeight
+    
+    // If image didn't load, return fallback message
+    if (width === 0 || height === 0) {
+      return `Auto-detected → ${detectedRatio} (unable to load image)`
+    }
+    
+    const ratio = width / height
+
+    switch (detectedRatio) {
+      case "16:9":
+        return `Landscape image (${width}×${height}, ratio ${ratio.toFixed(2)}) → 16:9 widescreen`
+      case "9:16":
+        return `Portrait image (${width}×${height}, ratio ${ratio.toFixed(2)}) → 9:16 vertical`
+      case "1:1":
+        return `Square image (${width}×${height}, ratio ${ratio.toFixed(2)}) → 1:1 square`
+      default:
+        return `Auto-detected → ${detectedRatio}`
+    }
+  } catch (error) {
+    return `Auto-detected → ${detectedRatio} (fallback)`
+  }
+}
+
+/**
+ * Detect aspect ratio from a File object (for uploaded images)
+ * Returns aspect ratio info and appropriate sizes for image editing and video generation
+ */
+export async function getImageAspectRatio(file: File): Promise<{
+  width: number
+  height: number
+  aspectRatio: number
+  orientation: 'landscape' | 'portrait' | 'square'
+  imageSize: '1024x1024' | '1536x1024' | '1024x1536'
+  videoAspectRatio: '16:9' | '9:16' | '1:1'
+}> {
+  return new Promise((resolve, reject) => {
+    // Handle HEIC/HEIF files specially since browsers can't display them natively
+    if (file.type === 'image/heic' || file.type === 'image/heif' || file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif')) {
+      console.log('Detected HEIC/HEIF file, using default landscape dimensions')
+      // Most iPhone photos are landscape 4:3 or 16:9
+      // Default to landscape orientation for HEIC files
+      resolve({
+        width: 4032,  // Common iPhone photo width
+        height: 3024, // Common iPhone photo height
+        aspectRatio: 4/3,
+        orientation: 'landscape',
+        imageSize: '1792x1024',
+        videoAspectRatio: '16:9'
+      })
+      return
+    }
+
+    const img = new Image()
+    const url = URL.createObjectURL(file)
+    
+    img.onload = () => {
+      const width = img.width
+      const height = img.height
+      const aspectRatio = width / height
+      
+      // Determine orientation and appropriate sizes
+      let orientation: 'landscape' | 'portrait' | 'square'
+      let imageSize: '1024x1024' | '1536x1024' | '1024x1536'
+      let videoAspectRatio: '16:9' | '9:16' | '1:1'
+      
+      if (Math.abs(aspectRatio - 1) < 0.1) {
+        // Square (within 10% of 1:1)
+        orientation = 'square'
+        imageSize = '1024x1024'
+        videoAspectRatio = '1:1'
+      } else if (aspectRatio > 1) {
+        // Landscape
+        orientation = 'landscape'
+        imageSize = '1536x1024' // OpenAI-compatible landscape size
+        videoAspectRatio = '16:9'
+      } else {
+        // Portrait
+        orientation = 'portrait'
+        imageSize = '1024x1536' // OpenAI-compatible portrait size
+        videoAspectRatio = '9:16'
+      }
+      
+      URL.revokeObjectURL(url)
+      resolve({ width, height, aspectRatio, orientation, imageSize, videoAspectRatio })
+    }
+    
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      // Instead of rejecting, return default values
+      console.warn('Failed to load image for aspect ratio detection, using defaults')
+      resolve({
+        width: 1024,
+        height: 1024,
+        aspectRatio: 1,
+        orientation: 'square',
+        imageSize: '1024x1024',
+        videoAspectRatio: '1:1'
+      })
+    }
+    
+    img.src = url
+  })
 }

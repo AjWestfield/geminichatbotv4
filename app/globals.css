@@ -308,3 +308,16 @@ body {
 .image-reveal.image-loaded {
   opacity: 1;
 }
+
+/* Shimmer animation for loading states */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s ease-in-out infinite;
+  background-size: 200% 100%;
+  position: relative;
+  overflow: hidden;
+}

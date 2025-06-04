@@ -4,7 +4,7 @@ import { cn, formatFileSize } from "@/lib/utils"
 
 interface UploadProgressProps {
   progress: number
-  status: 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error'
+  status: 'idle' | 'uploading' | 'transcribing' | 'complete' | 'error' | 'converting'
   fileName?: string
   fileSize?: number
 }
@@ -15,6 +15,8 @@ export function UploadProgress({ progress, status, fileName, fileSize }: UploadP
       case 'uploading':
         return <Upload className="w-4 h-4" />
       case 'transcribing':
+        return <Loader2 className="w-4 h-4 animate-spin" />
+      case 'converting':
         return <Loader2 className="w-4 h-4 animate-spin" />
       case 'complete':
         return <Check className="w-4 h-4" />
@@ -33,6 +35,8 @@ export function UploadProgress({ progress, status, fileName, fileSize }: UploadP
         return `Uploading ${name}${size}...`
       case 'transcribing':
         return 'Transcribing media...'
+      case 'converting':
+        return 'Converting HEIC to JPEG...'
       case 'complete':
         return 'Upload complete!'
       case 'error':
@@ -75,10 +79,10 @@ export function UploadProgress({ progress, status, fileName, fileSize }: UploadP
             )}
           </div>
           
-          {(status === 'uploading' || status === 'transcribing') && (
+          {(status === 'uploading' || status === 'transcribing' || status === 'converting') && (
             <div className="mt-2">
               <div className="w-full bg-black/30 rounded-full h-1.5 overflow-hidden">
-                {status === 'transcribing' ? (
+                {(status === 'transcribing' || status === 'converting') ? (
                   <div className="h-full bg-blue-500 rounded-full animate-pulse" />
                 ) : (
                   <motion.div
@@ -92,6 +96,11 @@ export function UploadProgress({ progress, status, fileName, fileSize }: UploadP
               {status === 'transcribing' && (
                 <p className="text-xs text-gray-400 mt-1">
                   This may take a few moments...
+                </p>
+              )}
+              {status === 'converting' && (
+                <p className="text-xs text-gray-400 mt-1">
+                  Processing HEIC image...
                 </p>
               )}
             </div>

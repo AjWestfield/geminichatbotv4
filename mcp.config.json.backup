@@ -1,0 +1,1 @@
+{"servers":[{"id":"sequential-thinking-1","name":"Sequential Thinking","command":"npx","args":["-y","@modelcontextprotocol/server-sequentialthinking"],"env":{},"transportType":"stdio"}],"version":"1.0","lastModified":"2024-01-30T12:45:00.000Z"}

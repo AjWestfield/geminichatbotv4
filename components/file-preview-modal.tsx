@@ -1,5 +1,5 @@
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { FileAudio, Download, Music, Video, Play } from "lucide-react"
+import { FileAudio, Download, Music, Video, Play, Sparkles, Pencil } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { formatDuration, formatFileSize, formatVideoDuration } from "@/lib/utils"
 import { useState, useRef, useEffect } from "react"
@@ -26,9 +26,11 @@ interface FilePreviewModalProps {
     videoThumbnail?: string
     videoDuration?: number
   }
+  onAnimate?: (imageUrl: string, imageName: string) => void
+  onEdit?: (imageUrl: string, imageName: string) => void
 }
 
-export function FilePreviewModal({ isOpen, onClose, file }: FilePreviewModalProps) {
+export function FilePreviewModal({ isOpen, onClose, file, onAnimate, onEdit }: FilePreviewModalProps) {
   const isImage = file.contentType?.startsWith("image/")
   const isAudio = file.contentType?.startsWith("audio/")
   const isVideo = file.contentType?.startsWith("video/")
@@ -72,7 +74,7 @@ export function FilePreviewModal({ isOpen, onClose, file }: FilePreviewModalProp
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto bg-[#2B2B2B] border-[#333333]">
+      <DialogContent className="max-w-3xl max-h-[80vh] overflow-y-auto bg-[#2B2B2B] border-[#333333]">
         <DialogHeader>
           <DialogTitle className="text-white flex items-center gap-2">
             {isVideo && <Video className="h-5 w-5" />}
@@ -84,24 +86,57 @@ export function FilePreviewModal({ isOpen, onClose, file }: FilePreviewModalProp
         <div className="mt-4">
           {isImage && file.url && (
             <div className="flex flex-col items-center">
-              <img 
-                src={file.url} 
-                alt={file.name} 
-                className="max-w-full rounded-lg" 
-              />
-              <Button
-                variant="outline"
-                className="mt-4"
-                onClick={() => {
-                  const a = document.createElement('a')
-                  a.href = file.url!
-                  a.download = file.name
-                  a.click()
-                }}
-              >
-                <Download className="h-4 w-4 mr-2" />
-                Download Image
-              </Button>
+              <div className="relative max-w-full max-h-[50vh] overflow-hidden rounded-lg bg-black/20">
+                <img 
+                  src={file.url} 
+                  alt={file.name} 
+                  className="max-w-full max-h-[50vh] object-contain rounded-lg" 
+                />
+              </div>
+              <div className="flex gap-2 mt-4">
+                {onEdit && (
+                  <Button
+                    variant="outline"
+                    className="border-blue-600/50 hover:bg-blue-600/10"
+                    onClick={() => {
+                      if (file.url) {
+                        onEdit(file.url, file.name)
+                        onClose()
+                      }
+                    }}
+                  >
+                    <Pencil className="h-4 w-4 mr-2" />
+                    Edit
+                  </Button>
+                )}
+                {onAnimate && (
+                  <Button
+                    variant="outline"
+                    className="border-purple-600/50 hover:bg-purple-600/10"
+                    onClick={() => {
+                      if (file.url) {
+                        onAnimate(file.url, file.name)
+                        onClose()
+                      }
+                    }}
+                  >
+                    <Sparkles className="h-4 w-4 mr-2" />
+                    Animate
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    const a = document.createElement('a')
+                    a.href = file.url!
+                    a.download = file.name
+                    a.click()
+                  }}
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download
+                </Button>
+              </div>
             </div>
           )}          
           {isVideo && (

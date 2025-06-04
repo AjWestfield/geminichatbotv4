@@ -1,0 +1,37 @@
+#!/bin/bash
+
+# Test script for uploaded image edit fix
+
+echo "Testing Uploaded Image Edit Fix..."
+echo "================================"
+echo ""
+echo "1. Start the development server if not running:"
+echo "   npm run dev"
+echo ""
+echo "2. Test the fix:"
+echo "   a. Upload any image using the paperclip icon"
+echo "   b. Click the 'Edit' button from the inline options"
+echo "   c. The edit modal should open automatically"
+echo "   d. Enter an edit description, e.g.:"
+echo "      - 'make the eyes blue instead of green'"
+echo "      - 'change the background to a sunset'"
+echo "      - 'make the person smile'"
+echo "   e. Click 'Apply Edit'"
+echo ""
+echo "3. Expected behavior:"
+echo "   ✅ Modal closes without error"
+echo "   ✅ Toast shows 'Generating new image'"
+echo "   ✅ Chat shows the generation message"
+echo "   ✅ New image is generated based on description"
+echo "   ✅ Images tab is active to show result"
+echo ""
+echo "4. What was fixed:"
+echo "   - Removed error blocking for uploaded images"
+echo "   - Added proper callback chain through components"
+echo "   - Connected edit modal to chat interface"
+echo "   - Edit prompts now trigger image generation"
+echo ""
+echo "Press Ctrl+C to exit when done testing."
+
+# Keep script running for reference
+read -p "Press Enter to continue..."

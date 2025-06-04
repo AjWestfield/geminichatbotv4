@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { ArrowRight, Bot, Check, ChevronDown, Paperclip, Square, X, FileAudio, Image as ImageIcon, Video, Sparkles } from "lucide-react"
-import { useRef, useCallback, useEffect } from "react"
+import { useRef, useCallback, useEffect, useState } from "react"
 import { Textarea } from "@/components/ui/textarea"
 import { cn, formatFileSize, formatDuration, formatVideoDuration } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
@@ -82,6 +82,7 @@ interface AIPromptProps {
   selectedModel?: string
   onModelChange?: (model: string) => void
   onFileSelect?: (file: File) => void
+  onFilesSelect?: (files: File[]) => void
   selectedFile?: { 
     file: File
     preview?: string
@@ -93,7 +94,20 @@ interface AIPromptProps {
     videoThumbnail?: string // Add this
     videoDuration?: number // Add this
   } | null
+  selectedFiles?: Array<{
+    file: File
+    preview?: string
+    transcription?: {
+      text: string
+      language?: string
+      duration?: number
+    }
+    videoThumbnail?: string
+    videoDuration?: number
+  }>
   onFileRemove?: () => void
+  onFilesRemove?: (index: number) => void
+  onAllFilesRemove?: () => void
   onGenerateImage?: () => void // Add this for quick image generation
   onToolToggle?: (serverId: string, toolName: string, enabled: boolean) => void
   onServerToggle?: (serverId: string, enabled: boolean) => void
@@ -105,11 +119,16 @@ export function AI_Prompt({
   onSubmit,
   onStop,
   isLoading = false,
-  selectedModel = "gemini-2.5-flash-preview-05-20",
+  selectedModel = "gemini-2.0-flash-exp",
   onModelChange,
   onFileSelect,
+  onFilesSelect,
   selectedFile,
+  selectedFiles,
   onFileRemove,
+  onFilesRemove,
+  onAllFilesRemove,
+  onGenerateImage,
   onToolToggle,
   onServerToggle,
 }: AIPromptProps) {
@@ -117,6 +136,10 @@ export function AI_Prompt({
     minHeight: 80,
     maxHeight: 300,
   })
+
+  // Drag and drop state
+  const [isDragOver, setIsDragOver] = useState(false)
+  const [dragDepth, setDragDepth] = useState(0)
 
   const AI_MODELS = ["gemini-2.5-pro-preview-05-06", "gemini-2.5-flash-preview-05-20", "gemini-2.0-flash-exp", "Claude Sonnet 4"]
 
@@ -223,23 +246,257 @@ export function AI_Prompt({
     adjustHeight(true)
   }
 
+  // File validation helper
+  const isFileSupported = (file: File) => {
+    const supportedTypes = [
+      'image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/heic', 'image/heif', 'image/avif',
+      'audio/mpeg', 'audio/mp3', 'audio/wav', 'audio/webm', 'audio/mp4', 'audio/m4a',
+      'video/mp4', 'video/mpeg', 'video/mov', 'video/avi', 'video/webm', 'video/quicktime'
+    ]
+    return supportedTypes.includes(file.type)
+  }
+
+  // Drag and drop handlers
+  const handleDragEnter = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragDepth(prev => prev + 1)
+    setIsDragOver(true)
+  }, [])
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    const newDepth = dragDepth - 1
+    setDragDepth(newDepth)
+    if (newDepth === 0) {
+      setIsDragOver(false)
+    }
+  }, [dragDepth])
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+  }, [])
+
+  const handleDrop = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setDragDepth(0)
+    setIsDragOver(false)
+
+    const files = Array.from(e.dataTransfer.files)
+    const supportedFiles = files.filter(file => isFileSupported(file))
+    
+    if (supportedFiles.length > 0) {
+      if (supportedFiles.length === 1 && onFileSelect) {
+        // Handle single file
+        onFileSelect(supportedFiles[0])
+      } else if (supportedFiles.length > 1 && onFilesSelect) {
+        // Handle multiple files
+        onFilesSelect(supportedFiles)
+      } else if (onFilesSelect) {
+        // Fallback to multiple file handler for single file if no single file handler
+        onFilesSelect(supportedFiles)
+      }
+    }
+  }, [onFileSelect, onFilesSelect])
+
+  // Paste handler
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = Array.from(e.clipboardData.items)
+    const fileItem = items.find(item => item.kind === 'file')
+    
+    if (fileItem && onFileSelect) {
+      const file = fileItem.getAsFile()
+      if (file && isFileSupported(file)) {
+        onFileSelect(file)
+      }
+    }
+  }, [onFileSelect])
+
   return (
     <div className="w-full py-4">
-      <div className="bg-[#2B2B2B] rounded-2xl p-1.5 border border-[#4A4A4A] focus-within:ring-2 focus-within:ring-[#4A4A4A] focus-within:ring-offset-2 focus-within:ring-offset-[#1E1E1E] transition-all duration-200">
-        {selectedFile && (
+      <div 
+        className={cn(
+          "bg-[#2B2B2B] rounded-2xl p-1.5 border transition-all duration-200",
+          isDragOver 
+            ? "border-blue-400 ring-2 ring-blue-400 ring-offset-2 ring-offset-[#1E1E1E] bg-blue-500/5" 
+            : "border-[#4A4A4A] focus-within:ring-2 focus-within:ring-[#4A4A4A] focus-within:ring-offset-2 focus-within:ring-offset-[#1E1E1E]"
+        )}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+      >
+        {/* Multiple files preview - show when we have multiple files OR both single and multiple */}
+        {(selectedFiles && selectedFiles.length > 0) && (
+          <div className="mx-4 mt-2 mb-2">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs text-[#B0B0B0]">
+                {/* Count both selectedFile and selectedFiles if both exist */}
+                {(selectedFile ? 1 : 0) + selectedFiles.length} file{((selectedFile ? 1 : 0) + selectedFiles.length) > 1 ? 's' : ''} selected
+              </span>
+              {/* Add clear all button */}
+              {onAllFilesRemove && (
+                <button
+                  type="button"
+                  onClick={onAllFilesRemove}
+                  className="text-xs text-red-400 hover:text-red-300 transition-colors"
+                >
+                  Clear all
+                </button>
+              )}
+            </div>
+            <div className="max-h-32 overflow-y-auto space-y-2">
+              {/* Show selectedFile first if it exists */}
+              {selectedFile && (
+                <div className="bg-[#333333] rounded-lg p-2 relative">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {selectedFile.file.type.startsWith("image/") ? (
+                        <>
+                          {selectedFile.preview ? (
+                            <img 
+                              src={selectedFile.preview} 
+                              alt="Preview" 
+                              className="w-8 h-8 rounded object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                              <ImageIcon className="w-4 h-4 text-[#B0B0B0]" />
+                            </div>
+                          )}
+                        </>
+                      ) : selectedFile.file.type.startsWith("video/") ? (
+                        <>
+                          {selectedFile.videoThumbnail ? (
+                            <div className="relative w-8 h-8 rounded overflow-hidden flex-shrink-0">
+                              <img 
+                                src={selectedFile.videoThumbnail} 
+                                alt="Video thumbnail" 
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <Video className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                              <Video className="w-4 h-4 text-[#B0B0B0]" />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                          <FileAudio className="w-4 h-4 text-[#B0B0B0]" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-xs text-[#B0B0B0] truncate" title={selectedFile.file.name}>
+                          {selectedFile.file.name}
+                        </p>
+                        <p className="text-xs text-[#808080]">
+                          {formatFileSize(selectedFile.file.size)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={onFileRemove}
+                      className="p-1 hover:bg-[#4A4A4A] rounded flex-shrink-0"
+                      aria-label="Remove file"
+                    >
+                      <X className="w-3 h-3 text-[#B0B0B0]" />
+                    </button>
+                  </div>
+                </div>
+              )}
+              {/* Then show all files from selectedFiles */}
+              {selectedFiles.map((file, index) => (
+                <div key={index} className="bg-[#333333] rounded-lg p-2 relative">
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      {file.file.type.startsWith("image/") ? (
+                        <>
+                          {file.preview ? (
+                            <img 
+                              src={file.preview} 
+                              alt="Preview" 
+                              className="w-8 h-8 rounded object-cover flex-shrink-0"
+                            />
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                              <ImageIcon className="w-4 h-4 text-[#B0B0B0]" />
+                            </div>
+                          )}
+                        </>
+                      ) : file.file.type.startsWith("video/") ? (
+                        <>
+                          {file.videoThumbnail ? (
+                            <div className="relative w-8 h-8 rounded overflow-hidden flex-shrink-0">
+                              <img 
+                                src={file.videoThumbnail} 
+                                alt="Video thumbnail" 
+                                className="w-full h-full object-cover"
+                              />
+                              <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                                <Video className="w-3 h-3 text-white" />
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="w-8 h-8 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                              <Video className="w-4 h-4 text-[#B0B0B0]" />
+                            </div>
+                          )}
+                        </>
+                      ) : (
+                        <div className="w-8 h-8 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                          <FileAudio className="w-4 h-4 text-[#B0B0B0]" />
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0 overflow-hidden">
+                        <p className="text-xs text-[#B0B0B0] truncate" title={file.file.name}>
+                          {file.file.name}
+                        </p>
+                        <p className="text-xs text-[#808080]">
+                          {formatFileSize(file.file.size)}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onFilesRemove?.(index)}
+                      className="p-1 hover:bg-[#4A4A4A] rounded flex-shrink-0"
+                      aria-label="Remove file"
+                    >
+                      <X className="w-3 h-3 text-[#B0B0B0]" />
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Single file preview (for backward compatibility) */}
+        {selectedFile && (!selectedFiles || selectedFiles.length === 0) && (
           <div className="mx-4 mt-2 mb-2 bg-[#333333] rounded-lg max-w-[350px]">
             <div className="flex items-center gap-2 p-2">
               <div className="flex items-center gap-2 flex-1 min-w-0">
                 {selectedFile.file.type.startsWith("image/") ? (
                   <>
-                    {selectedFile.preview && (
+                    {selectedFile.preview ? (
                       <img 
                         src={selectedFile.preview} 
                         alt="Preview" 
                         className="w-10 h-10 rounded object-cover flex-shrink-0"
                       />
+                    ) : (
+                      <div className="w-10 h-10 rounded bg-black/30 flex items-center justify-center flex-shrink-0">
+                        <ImageIcon className="w-5 h-5 text-[#B0B0B0]" />
+                      </div>
                     )}
-                    <ImageIcon className="w-4 h-4 text-[#B0B0B0] flex-shrink-0" />
                   </>
                 ) : selectedFile.file.type.startsWith("video/") ? (
                   <>
@@ -271,6 +528,10 @@ export function AI_Prompt({
                   </p>
                   <p className="text-xs text-[#808080]">
                     {formatFileSize(selectedFile.file.size)}
+                    {(selectedFile.file.type === 'image/heic' || selectedFile.file.type === 'image/heif' || 
+                      selectedFile.file.name.toLowerCase().endsWith('.heic') || 
+                      selectedFile.file.name.toLowerCase().endsWith('.heif')) && 
+                      " • HEIC format"}
                     {selectedFile.file.type.startsWith("audio/") && selectedFile.preview && " • Ready to play"}
                     {selectedFile.file.type.startsWith("video/") && selectedFile.videoDuration && 
                       ` • ${formatVideoDuration(selectedFile.videoDuration)}`}
@@ -316,6 +577,7 @@ export function AI_Prompt({
                 )}
                 ref={textareaRef}
                 onKeyDown={handleKeyDown}
+                onPaste={handlePaste}
                 onChange={(e) => {
                   onChange(e.target.value)
                   adjustHeight()
@@ -323,6 +585,17 @@ export function AI_Prompt({
                 disabled={isLoading}
               />
             </div>
+
+            {/* Drag overlay */}
+            {isDragOver && (
+              <div className="absolute inset-0 bg-blue-500/10 border-2 border-dashed border-blue-400 rounded-xl flex items-center justify-center z-50">
+                <div className="text-center">
+                  <Paperclip className="w-8 h-8 mx-auto mb-2 text-blue-400" />
+                  <p className="text-sm font-medium text-blue-400">Drop your file here</p>
+                  <p className="text-xs text-blue-300">Images, audio, and video files supported</p>
+                </div>
+              </div>
+            )}
 
             <div className="h-14 bg-[#2B2B2B] rounded-b-xl flex items-center">
               <div className="absolute left-3 right-3 bottom-3 flex items-center justify-between w-[calc(100%-24px)]">
@@ -389,11 +662,26 @@ export function AI_Prompt({
                     <input 
                       type="file" 
                       className="hidden" 
-                      accept="image/jpeg,image/png,image/webp,image/heic,image/heif,audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/mp4,audio/m4a,video/mp4,video/mpeg,video/mov,video/avi,video/webm,video/quicktime"
+                      id="file-upload-input"
+                      accept="image/jpeg,image/jpg,image/png,image/webp,image/heic,image/heif,image/avif,audio/mpeg,audio/mp3,audio/wav,audio/webm,audio/mp4,audio/m4a,video/mp4,video/mpeg,video/mov,video/avi,video/webm,video/quicktime"
+                      multiple
                       onChange={(e) => {
-                        const file = e.target.files?.[0]
-                        if (file && onFileSelect) {
-                          onFileSelect(file)
+                        const files = e.target.files
+                        if (files && files.length > 0) {
+                          if (files.length === 1 && onFileSelect) {
+                            // Handle single file
+                            onFileSelect(files[0])
+                          } else if (files.length > 1 && onFilesSelect) {
+                            // Handle multiple files
+                            const fileArray = Array.from(files)
+                            onFilesSelect(fileArray)
+                          } else if (onFilesSelect) {
+                            // Fallback to multiple file handler for single file if no single file handler
+                            const fileArray = Array.from(files)
+                            onFilesSelect(fileArray)
+                          }
+                          // Reset the input so files can be selected again
+                          e.target.value = ''
                         }
                       }}
                     />
