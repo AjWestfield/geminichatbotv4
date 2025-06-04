@@ -1,43 +1,92 @@
 # Gemini Chatbot v4
 
-A powerful, feature-rich AI chatbot application with advanced image and video generation capabilities, persistence, and multi-modal support.
+An advanced AI chatbot application featuring multi-model support, image and video generation, file handling, and persistent storage.
 
-## 🚀 Key Features
+## 🚀 Features
 
-### 💬 Chat Capabilities
-- **Multi-Model Support**: Gemini, GPT-4, Claude, and more
-- **Real-time Streaming**: Smooth, responsive chat experience
-- **Chat Persistence**: Save and reload conversations with Supabase
-- **File Uploads**: Support for images, PDFs, and documents
-- **Voice Input**: Built-in speech-to-text functionality
+### 💬 AI Chat Models
+- **Gemini 2.5 Flash** (default) - Fast and efficient conversations
+- **Gemini 2.0 Flash** - Alternative Gemini model
+- **Claude Support** - Interface for Claude models (requires Anthropic API key)
 
-### 🎨 Image Generation & Editing
-- **Multiple Image Models**: DALL-E 3, Recraft V3, Ideogram, and more
-- **Advanced Editing**: Edit uploaded and generated images
-- **HEIC Support**: Automatic conversion of HEIC images to JPEG
-- **Aspect Ratio Detection**: Automatic and manual aspect ratio options
-- **Background Generation**: AI-powered background creation for images
-- **Persistent Storage**: Images saved to Vercel Blob Storage
-- **Fixed Deletion**: Deleted images now stay deleted after refresh
+### 🎨 Image Generation
+- **GPT-Image-1** (HD Quality)
+  - High-quality image generation
+  - Accurate text rendering
+  - Requires OpenAI API key
+- **WaveSpeed Flux Dev Ultra Fast** (Standard Quality)
+  - Fast generation in seconds
+  - Good quality results
+  - Requires WaveSpeed API key
+
+### ✏️ Image Editing
+- Edit both generated and uploaded images
+- Powered by GPT-Image-1
+- Background generation capabilities
+- Automatic aspect ratio detection
 
 ### 🎬 Video Generation
-- **Kling Video Integration**: Generate videos from images
-- **Multiple Quality Options**: Standard and Pro quality settings
-- **Progress Tracking**: Real-time video generation status
-- **Video Gallery**: Organized view of all generated videos
-- **Persistence**: Videos saved to database and storage
+- **Kling v1.6 Models** via Replicate
+  - Standard quality (5-10 second videos)
+  - Pro quality (higher resolution)
+- Generate videos from text prompts
+- Image-to-video animation
+- Real-time progress tracking
 
-### 🔧 Advanced Features
-- **MCP (Model Context Protocol) Integration**: 
-  - GitHub integration for code analysis
-  - Web search capabilities with Tavily
-  - File system access via Desktop Commander
-  - Sequential thinking for complex tasks
-- **Enhanced Search**: AI-powered search across chats
-- **Tool Usage Tracking**: Monitor AI tool usage in real-time
-- **Auto-save**: Automatic saving of chats and media
+### 📁 File Support
+**Images:**
+- JPEG, PNG, WebP, AVIF
+- HEIC/HEIF with automatic JPEG conversion
+- Multi-file upload support
 
-## 🛠️ Installation
+**Audio:**
+- MP3, WAV, WEBM, MP4, M4A
+- Automatic transcription via OpenAI Whisper
+- Support for voice messages
+
+**Video:**
+- MP4, MOV, AVI, FLV, WEBM, WMV, 3GPP, QuickTime
+- Video preview and playback
+
+### 🔍 Advanced Features
+- **Web Search Integration** - Powered by Tavily API
+- **Chat Persistence** - Save conversations with Supabase
+- **Cloud Storage** - Images and videos stored in Vercel Blob
+- **MCP (Model Context Protocol)** - Extensible tool system
+- **Canvas View** - Tabs for Preview, Code, Browser, Video, Audio, Images, and Docs
+
+### 🛠️ Recent Updates (v4)
+- ✅ Fixed image deletion persistence - deleted images stay deleted
+- ✅ Automatic localStorage cleanup for better performance
+- ✅ Enhanced image editing with background generation
+- ✅ HEIC to JPEG auto-conversion
+- ✅ Multi-file upload support
+- ✅ Improved error handling and user feedback
+
+## 📋 Requirements
+
+### Required API Keys
+```env
+GEMINI_API_KEY=your_gemini_api_key        # Required for chat
+```
+
+### Optional API Keys
+```env
+OPENAI_API_KEY=your_openai_api_key        # For GPT-Image-1 and transcription
+WAVESPEED_API_KEY=your_wavespeed_key      # For Flux image generation
+ANTHROPIC_API_KEY=your_claude_api_key     # For Claude models
+REPLICATE_API_KEY=your_replicate_key      # For video generation
+TAVILY_API_KEY=your_tavily_api_key        # For web search
+```
+
+### Storage & Database (Optional)
+```env
+SUPABASE_URL=your_supabase_url            # For chat persistence
+SUPABASE_API_KEY=your_supabase_anon_key   # For chat persistence
+BLOB_READ_WRITE_TOKEN=your_vercel_token   # For image/video storage
+```
+
+## 🚀 Installation
 
 1. **Clone the repository**
 ```bash
@@ -48,6 +97,8 @@ cd geminichatbotv4
 2. **Install dependencies**
 ```bash
 npm install
+# or
+pnpm install
 ```
 
 3. **Set up environment variables**
@@ -55,147 +106,116 @@ npm install
 cp .env.example .env.local
 ```
 
-4. **Configure your API keys in `.env.local`**
-```env
-# Required
-GEMINI_API_KEY=your_gemini_key
-OPENAI_API_KEY=your_openai_key
+4. **Add your API keys to `.env.local`**
+At minimum, you need:
+- `GEMINI_API_KEY` for chat functionality
 
-# Optional but recommended
-ANTHROPIC_API_KEY=your_claude_key
-REPLICATE_API_KEY=your_replicate_key
-TAVILY_API_KEY=your_tavily_key
-
-# For persistence (optional)
-SUPABASE_URL=your_supabase_url
-SUPABASE_API_KEY=your_supabase_key
-BLOB_READ_WRITE_TOKEN=your_vercel_blob_token
+5. **Run the development server**
+```bash
+npm run dev
+# or
+pnpm dev
 ```
 
-5. **Set up database (optional)**
+Open [http://localhost:3000](http://localhost:3000) to start chatting!
+
+## 💾 Database Setup (Optional)
+
+To enable chat persistence and history:
+
+1. Create a [Supabase](https://supabase.com) project
+2. Run the SQL schema from `DATABASE_SETUP.sql` in your Supabase SQL editor
+3. Add your Supabase credentials to `.env.local`
+4. Create a [Vercel Blob](https://vercel.com/docs/storage/vercel-blob) store for media storage
+5. Run the setup script:
 ```bash
 node setup-persistence.js
 ```
 
-6. **Run the development server**
-```bash
-npm run dev
-```
+## 🎯 Usage Guide
 
-## 📊 Database Setup
-
-If you want to enable persistence:
-
-1. Create a Supabase project at [supabase.com](https://supabase.com)
-2. Run the SQL schema from `DATABASE_SETUP.sql`
-3. Add your Supabase credentials to `.env.local`
-4. Create a Vercel Blob store for image storage
-5. Run `node setup-persistence.js` to verify configuration
-
-## 🎯 Recent Updates (v4)
-
-### Image Management Improvements
-- ✅ Fixed image deletion persistence - deleted images no longer reappear
-- ✅ Automatic localStorage cleanup when persistence is enabled
-- ✅ Database as source of truth for image storage
-- ✅ Enhanced image editing with background generation
-- ✅ HEIC to JPEG conversion support
+### Image Generation
+1. Type your prompt in the chat
+2. Click the image icon or use natural language
+3. Choose between HD (GPT-Image-1) or Standard (Flux) quality in settings
+4. Images appear in the Images tab
 
 ### Video Generation
-- ✅ Kling AI video generation from images
-- ✅ Real-time progress tracking
-- ✅ Video persistence and gallery view
-- ✅ Quality selection (Standard/Pro)
+1. Generate or upload an image
+2. Click the "Animate" button on any image
+3. Choose video settings (duration, aspect ratio)
+4. Monitor progress in real-time
 
-### UI/UX Enhancements
-- ✅ Auto-detection of image aspect ratios
-- ✅ Inline image options for quick actions
-- ✅ Improved error handling and user feedback
-- ✅ Enhanced search functionality
-- ✅ Better file upload experience
+### File Uploads
+- Drag and drop files into the chat
+- Supports multiple files at once
+- HEIC images automatically convert to JPEG
+- Audio files are transcribed automatically
 
-### Technical Improvements
-- ✅ Fixed infinite loop issues
-- ✅ Improved streaming performance
-- ✅ Better error handling for quota limits
-- ✅ Enhanced MCP tool integration
-- ✅ Optimized localStorage usage
+### MCP Tools
+1. Configure MCP servers in Settings → MCP tab
+2. Available tool types:
+   - File system access
+   - GitHub integration
+   - Database connections
+   - Custom tools
 
-## 🤝 MCP (Model Context Protocol) Setup
+## 🔧 Configuration
 
-To enable MCP features:
+### Image Generation Settings
+- **Quality**: HD (GPT-Image-1) or Standard (Flux)
+- **Style**: Vivid or Natural
+- **Size**: Square, Landscape, or Portrait
+- **Auto-detect aspect ratio**: Automatic size selection based on prompts
 
-1. Edit `mcp.config.json` with your server configurations
-2. Available servers:
-   - GitHub integration for code analysis
-   - Web search via Tavily
-   - Desktop Commander for file access
-   - Sequential thinking for complex reasoning
-
-## 🎨 Image Models Available
-
-- **DALL-E 3**: High-quality, creative images
-- **Recraft V3**: Artistic and stylized images
-- **Ideogram**: Text-accurate image generation
-- **Flux Schnell**: Fast, efficient generation
-- **Flux Pro**: Professional quality images
-- **Stable Diffusion XL**: Open-source alternative
-
-## 🔐 Security Notes
-
-- API keys are stored locally in `.env.local`
-- Never commit your `.env.local` file
-- Use environment variables for production
-- Enable RLS (Row Level Security) in Supabase
-
-## 📝 Usage Tips
-
-1. **Chat Persistence**: Click on any chat in the sidebar to reload it
-2. **Image Editing**: Click the edit button on any image
-3. **Video Generation**: Use the "Animate" button on images
-4. **Search**: Use the search box to find past conversations
-5. **Tool Usage**: Watch the tool indicator to see AI reasoning
+### Video Generation Settings
+- **Model**: Standard or Pro
+- **Duration**: 5 or 10 seconds
+- **Aspect Ratio**: 16:9, 9:16, or 1:1
 
 ## 🐛 Troubleshooting
 
-### Images not persisting?
-- Check your Supabase and Blob Storage credentials
-- Run `node verify-persistence.js` to test configuration
+### Images not generating?
+- Check your API keys (OpenAI for HD, WaveSpeed for standard)
+- Verify you have credits/quota available
+- Check browser console for specific errors
 
-### HEIC images not displaying?
-- The app automatically converts HEIC to JPEG
-- Check the console for conversion errors
+### HEIC files not converting?
+- Ensure the file is under 50MB
+- Check server logs for conversion errors
+- Try uploading the file again
 
-### Videos stuck in processing?
-- Check your Replicate API key
-- Verify you have credits available
+### Videos stuck processing?
+- Verify your Replicate API key
+- Check you have available credits
+- Video generation can take 2-5 minutes
 
-## 🚧 Known Issues
+### Chat history not saving?
+- Verify Supabase credentials
+- Run `node verify-persistence.js`
+- Check database connection
 
-- Large file uploads may be slow
-- Some video generations may timeout
-- Search results are limited to recent chats
-
-## 🤖 Contributing
+## 🤝 Contributing
 
 Contributions are welcome! Please:
 1. Fork the repository
-2. Create a feature branch
-3. Commit your changes
-4. Push to the branch
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ## 📄 License
 
-MIT License - see LICENSE file for details
+MIT License - see [LICENSE](LICENSE) file for details
 
 ## 🙏 Acknowledgments
 
-- Built with Next.js 14 and React
-- UI components from shadcn/ui
-- Powered by various AI APIs
-- MCP protocol by Anthropic
+- Built with [Next.js 14](https://nextjs.org/) and React
+- UI components from [shadcn/ui](https://ui.shadcn.com/)
+- AI integrations: Google (Gemini), OpenAI, Anthropic, Replicate
+- Storage: Vercel Blob, Supabase
+- Search: Tavily API
 
 ---
 
-**Latest Update**: June 4, 2025 - Fixed image deletion persistence issue
+**Latest Update**: June 4, 2025 - Fixed image deletion persistence, enhanced features
